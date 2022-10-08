@@ -1,0 +1,26 @@
+language: python
+
+services:
+  - docker
+
+before_install:
+  - docker build -t pokeraitest .
+
+# Hook up code coverage in the before test script.
+before_script:
+  - curl -L https://codeclimate.com/downloads/test-reporter/test-reporter-latest-linux-amd64 > ./cc-test-reporter
+  - chmod +x ./cc-test-reporter
+  - ./cc-test-reporter before-build
+
+# command to run test script.
+script: 
+  - docker run -ti pokeraitest pytest test -v --cov-report term --cov-report xml --cov-fail-under=50 --cov=/poker_ai/poker_ai
+  - MOST_RECENT_IMAGE=$(docker ps -a --format "{{.Image}}" | head -1)
+
+# Code to run after the test script.
+after_script:
+  - if [[ "$TRAVIS_PULL_REQUEST" == "false" ]]; then docker run -ti $MOST_RECENT_IMAGE ./cc-test-reporter after-build --exit-code $TRAVIS_TEST_RESULT; fi
+
+# Alert us in slack.
+notifications:
+  slack: pluribusworkspace:MSz1cpRLvkGsMHpYkDhbGOLE
