@@ -3,6 +3,7 @@ tags
 tags/
 *.pkl
 *.gz
+_*
 
 ### WEB STUFF
 

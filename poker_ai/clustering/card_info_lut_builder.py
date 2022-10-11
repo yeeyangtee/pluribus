@@ -6,7 +6,7 @@ import concurrent.futures
 
 import joblib
 import numpy as np
-from sklearn.cluster import KMeans
+from sklearn.cluster import KMeans, MiniBatchKMeans
 from scipy.stats import wasserstein_distance
 from tqdm import tqdm
 
@@ -332,7 +332,15 @@ class CardInfoLutBuilder(CardCombos):
 
     @staticmethod
     def cluster(num_clusters: int, X: np.ndarray):
-        km = KMeans(
+        # km = KMeans(
+        #     n_clusters=num_clusters,
+        #     init="random",
+        #     n_init=10,
+        #     max_iter=300,
+        #     tol=1e-04,
+        #     random_state=0,
+        # )
+        km = MiniBatchKMeans(
             n_clusters=num_clusters,
             init="random",
             n_init=10,
@@ -340,6 +348,7 @@ class CardInfoLutBuilder(CardCombos):
             tol=1e-04,
             random_state=0,
         )
+        
         y_km = km.fit_predict(X)
         # Centers to be used for r - 1 (ie; the previous round)
         centroids = km.cluster_centers_
