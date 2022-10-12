@@ -1,5 +1,6 @@
 import logging
 import time
+import os
 from pathlib import Path
 from typing import Any, Dict, List
 import concurrent.futures
@@ -9,7 +10,6 @@ import numpy as np
 from sklearn.cluster import KMeans, MiniBatchKMeans
 from scipy.stats import wasserstein_distance
 from tqdm import tqdm
-
 from poker_ai.clustering.card_combos import CardCombos
 from poker_ai.clustering.game_utility import GameUtility
 from poker_ai.clustering.preflop import compute_preflop_lossless_abstraction
@@ -89,23 +89,33 @@ class CardInfoLutBuilder(CardCombos):
         """Compute river clusters and create lookup table."""
         log.info("Starting computation of river clusters.")
         start = time.time()
-        with concurrent.futures.ProcessPoolExecutor() as executor:
+
+        # Here is computing the expected hand strength of each.
+        with concurrent.futures.ProcessPoolExecutor(os.cpu_count()-1) as executor:
             self._river_ehs = list(
                 tqdm(
                     executor.map(
                         self.process_river_ehs,
                         self.river,
                         chunksize=len(self.river) // 160,
+                        # chunksize=16384,
                     ),
                     total=len(self.river),
                 )
             )
+
+        end = time.time()
+        log.info(
+            f"Finished computation of river HS - took {end - start} seconds."
+        )
+
+        # Here then cluster based on hand strengths.
         self.centroids["river"], self._river_clusters = self.cluster(
             num_clusters=n_river_clusters, X=self._river_ehs
         )
         end = time.time()
         log.info(
-            f"Finished computation of river clusters - took {end - start} seconds."
+            f"Finished computation and clustering of river - took {end - start} seconds."
         )
         return self.create_card_lookup(self._river_clusters, self.river)
 
@@ -113,7 +123,7 @@ class CardInfoLutBuilder(CardCombos):
         """Compute turn clusters and create lookup table."""
         log.info("Starting computation of turn clusters.")
         start = time.time()
-        with concurrent.futures.ProcessPoolExecutor() as executor:
+        with concurrent.futures.ProcessPoolExecutor(os.cpu_count()-1) as executor:
             self._turn_ehs_distributions = list(
                 tqdm(
                     executor.map(
@@ -124,18 +134,25 @@ class CardInfoLutBuilder(CardCombos):
                     total=len(self.turn),
                 )
             )
+
+        end = time.time()
+        log.info(
+            f"Finished computation of turn HS - took {end - start} seconds."
+        )
+
         self.centroids["turn"], self._turn_clusters = self.cluster(
             num_clusters=n_turn_clusters, X=self._turn_ehs_distributions
         )
         end = time.time()
-        log.info(f"Finished computation of turn clusters - took {end - start} seconds.")
+        log.info(f"Finished computation and clustering of turn - took {end - start} seconds.")
+
         return self.create_card_lookup(self._turn_clusters, self.turn)
 
     def _compute_flop_clusters(self, n_flop_clusters: int):
         """Compute flop clusters and create lookup table."""
         log.info("Starting computation of flop clusters.")
         start = time.time()
-        with concurrent.futures.ProcessPoolExecutor() as executor:
+        with concurrent.futures.ProcessPoolExecutor(os.cpu_count()-1) as executor:
             self._flop_potential_aware_distributions = list(
                 tqdm(
                     executor.map(
@@ -341,7 +358,8 @@ class CardInfoLutBuilder(CardCombos):
         # )
         km = MiniBatchKMeans(
             n_clusters=num_clusters,
-            init="random",
+            init="k-means++",
+            batch_size=5096,
             n_init=10,
             max_iter=300,
             tol=1e-04,
