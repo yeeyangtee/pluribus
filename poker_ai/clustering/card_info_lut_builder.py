@@ -53,7 +53,6 @@ class CardInfoLutBuilder(CardCombos):
         except FileNotFoundError:
             self.centroids: Dict[str, Any] = {}
             self.card_info_lut: Dict[str, Any] = {}
-
     def compute(
         self, n_river_clusters: int, n_turn_clusters: int, n_flop_clusters: int,
     ):

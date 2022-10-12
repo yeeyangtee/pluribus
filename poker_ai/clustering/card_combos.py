@@ -9,9 +9,34 @@ from tqdm import tqdm
 from poker_ai.poker.card import Card
 from poker_ai.poker.deck import get_all_suits
 
+from multiprocessing import Manager,Process, Pool
+import os
+
 
 log = logging.getLogger("poker_ai.clustering.runner")
 
+def process_combos(combos,publics):
+    # Descending sort combos.
+    sorted_combos: List[Card] = sorted(
+        list(combos),
+        key=operator.attrgetter("eval_card"),
+        reverse=True,
+    )
+    out = []
+    for public_combo in publics:
+        # Descending sort public_combo.
+        sorted_public_combo: List[Card] = sorted(
+            list(public_combo),
+            key=operator.attrgetter("eval_card"),
+            reverse=True,
+        )
+        if not np.any(np.isin(sorted_combos, sorted_public_combo)):
+            # Combine hand and public cards.
+            hand: np.array = np.array(
+                sorted_combos + sorted_public_combo
+            )
+            out.append(hand)
+    return out
 
 class CardCombos:
     """This class stores combinations of cards (histories) per street."""
@@ -55,6 +80,9 @@ class CardCombos:
         """
         return np.array([c for c in combinations(self._cards, num_cards)])
 
+
+    
+
     def create_info_combos(
         self, start_combos: np.ndarray, publics: np.ndarray
     ) -> np.ndarray:
@@ -84,6 +112,15 @@ class CardCombos:
         else:
             betting_stage = "unknown"
         our_cards: List[Card] = []
+
+
+        with Pool(os.cpu_count()-1) as p:
+            our_cards += p.starmap(process_combos, map(lambda x: (x,publics),start_combos))
+
+        # print(np.array(our_cards).reshape(-1, publics.shape[1]+2).shape)
+        return np.array(our_cards).reshape(-1, publics.shape[1]+2)
+
+
         for combos in tqdm(
             start_combos,
             dynamic_ncols=True,
@@ -108,4 +145,6 @@ class CardCombos:
                         sorted_combos + sorted_public_combo
                     )
                     our_cards.append(hand)
+        print(np.array(our_cards).shape)
+
         return np.array(our_cards)
