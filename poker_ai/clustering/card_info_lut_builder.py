@@ -451,7 +451,6 @@ class CardInfoLutBuilderAbstract(CardCombosAbstract):
         )
         # MEOW create a global one!
         self._evaluator = Evaluator()
-        self._cards_int = [int(c) for c in self._cards]
 
         self.card_info_lut_path: Path = Path(save_dir) / "card_info_lut.joblib"
         self.centroid_path: Path = Path(save_dir) / "centroids.joblib"
@@ -504,7 +503,7 @@ class CardInfoLutBuilderAbstract(CardCombosAbstract):
             self._river_ehs = list(
                 tqdm(
                     executor.map(
-                        self.process_river_ehs,
+                        self.process_river_ehs_abstract,
                         self.river,
                         chunksize=len(self.river) // 160,
                         # chunksize=16384,
@@ -681,8 +680,10 @@ class CardInfoLutBuilderAbstract(CardCombosAbstract):
         """
         our_hand = public[:2]
         board = public[2:7]
+
         # Get expected hand strength
-        game = GameUtilityAbstract(our_hand=our_hand, board=board, cards=self._cards_int, evaluator=self._evaluator)
+        game = GameUtilityAbstract(our_hand=our_hand, 
+        board=board, cards=self._cards, evaluator=self._evaluator)
         return self.simulate_get_ehs(game)
 
     @staticmethod

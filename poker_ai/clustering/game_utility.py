@@ -74,8 +74,9 @@ class GameUtilityAbstract:
         # MEOW try to use global
         # self._evaluator = Evaluator()
         self._evaluator = evaluator
-        unavailable_cards = [board+our_hand]
-        self.available_cards = [c for c in cards if c not in unavailable_cards]        
+        unavailable_cards = board+our_hand
+        self.available_cards = [c for c in cards if c not in unavailable_cards] 
+        
         self.our_hand = our_hand
         self.board = board
 
@@ -92,6 +93,7 @@ class GameUtilityAbstract:
         -------
             Evaluation of hand
         """
+
         return self._evaluator.evaluate(
             board=self.board,
             cards=hand,
@@ -122,4 +124,7 @@ class GameUtilityAbstract:
         -------
             Two cards for the opponent (Card)
         """
-        return random.sample(self.available_cards, 2)
+        res = random.sample(self.available_cards, 2)
+        # # DEBUG
+        # print('\n[DEBUG] Res from sample hand:', res)
+        return res

@@ -245,9 +245,8 @@ class CardCombosAbstract:
         # Sort for caching.
         suits: List[str] = sorted(list(get_all_suits()))
         ranks: List[int] = sorted(list(range(low_card_rank, high_card_rank + 1)))
-        self._cards = np.array(
-            [int(Card(rank, suit)) for suit in suits for rank in ranks]
-        )
+        self._cards = [int(Card(rank, suit)) for suit in suits for rank in ranks]
+        self._cards.sort(reverse=True)
         self.starting_hands = self.get_card_combos(2, self._cards)
 
         
@@ -277,9 +276,11 @@ class CardCombosAbstract:
         -------
             Combos of cards (Card) -> np.ndarray
         """
-        return [c for c in combinations(deck, num_cards)]
+        res = [sorted(c, reverse=True) for c in combinations(deck, num_cards)]
+        res.sort(reverse=True)
+        return res
 
-    def get_unique_combos(self, starting_hands: list, n_public: int) ->np.ndarray:
+    def get_unique_combos(self, starting_hands: list, n_public: int) ->list:
         """
         Get the card combinations for a given street.
 
@@ -295,6 +296,6 @@ class CardCombosAbstract:
         our_cards = []
         for starting_hand in tqdm(starting_hands):
             valid_cards = [c for c in self._cards if c not in starting_hand]
-            perms = [starting_hand+a for a in combinations(valid_cards,n_public)]
+            perms = [list(starting_hand+list(a)) for a in combinations(valid_cards,n_public)]
             our_cards.extend(perms)
         return our_cards
