@@ -17,6 +17,7 @@ import os
 log = logging.getLogger("poker_ai.clustering.runner")
 
 
+
 def process_combos(combos,publics):
     our_cards = []
     # Descending sort combos.
@@ -67,6 +68,7 @@ class CardCombos:
             [Card(rank, suit) for suit in suits for rank in ranks]
         )
         self.starting_hands = self.get_card_combos(2)
+
         self.flop = self.create_info_combos(
             self.starting_hands, self.get_card_combos(3)
         )
@@ -95,8 +97,31 @@ class CardCombos:
         """
         return np.array([c for c in combinations(self._cards, num_cards)])
 
+    def get_card_combos_abstract(self, deck: np.ndarray, num_cards: int) ->np.ndarray:
+        """
+        Get the card combinations for a given street.
 
-    
+        Parameters
+        ----------
+        num_cards : int
+            Number of cards you want returned
+
+        Returns
+        -------
+            Combos of cards (Card) -> np.ndarray
+        """
+        return np.array([c for c in combinations(deck, num_cards)])
+
+    def create_unique_combos(
+        self, start_combos: np.ndarray, n_public: int
+    ) -> np.ndarray:
+        for start_combo in start_combos:
+            # exclude start_combo from self._cards
+            idx = np.isin(self._cards, start_combo, invert=True)
+            valid_cards = self._cards[idx]
+            public_combos = self.get_card_combos_custom(valid_cards, n_public)
+        print(public_combos.shape)
+        return public_combos
 
     def create_info_combos(
         self, start_combos: np.ndarray, publics: np.ndarray
@@ -127,6 +152,7 @@ class CardCombos:
         else:
             betting_stage = "unknown"
         our_cards: List[Card] = []
+        start_time = time.time()
         # COMMENT Multip on starting combos
 
         # with Pool(os.cpu_count()-1) as p:
@@ -137,8 +163,7 @@ class CardCombos:
         # return np.array(our_cards).reshape(-1, publics.shape[1]+2)
 
         # preprocess and do all sorting
-        log.info(f"Preprocessing {betting_stage} combos")
-        start_time = time.time()
+        # log.info(f"Preprocessing {betting_stage} combos")
 
         sorted_publics = []
         for public_combo in publics:
@@ -173,37 +198,9 @@ class CardCombos:
         log.info(f"Time to create {betting_stage} combos: {end_time - start_time:.2f} seconds")
         return np.array(our_cards).reshape(-1, publics.shape[1]+2)
 
-        # COMMENT Try with manager method
-        # with Manager() as manager:
-        #     # create the shared list
-        #     our_cards = manager.list()
-        #     # create many child processes
-
-        #     max_jobs_running = os.cpu_count()-1
-        #     jobs_running = 0
-        #     processes = []
-        #     for combos in tqdm(start_combos,desc=betting_stage):
-        #         p = Process(target=process_combos, args=(combos,publics,our_cards))
-        #         p.start()
-        #         processes.append(p)
 
 
-        #         jobs_running += 1
-
-        #         if jobs_running >= max_jobs_running:
-        #             while jobs_running >= max_jobs_running:
-        #                 jobs_running = 0
-        #                 for p in processes:
-        #                     jobs_running += p.is_alive()
-
-        #     for p in processes:
-        #         p.join()
-        # print(list(our_cards))
-        # print(np.array(list(our_cards)).shape)
-        # return np.array(our_cards)
-
-
-
+        # MEOW Original version.
         for combos in tqdm(
             start_combos,
             dynamic_ncols=True,
@@ -235,3 +232,69 @@ class CardCombos:
 
 
         return np.array(our_cards)
+
+
+
+class CardCombosAbstract:
+    """This class stores combinations of cards (histories) per street."""
+
+    def __init__(
+        self, low_card_rank: int, high_card_rank: int,
+    ):
+        super().__init__()
+        # Sort for caching.
+        suits: List[str] = sorted(list(get_all_suits()))
+        ranks: List[int] = sorted(list(range(low_card_rank, high_card_rank + 1)))
+        self._cards = np.array(
+            [int(Card(rank, suit)) for suit in suits for rank in ranks]
+        )
+        self.starting_hands = self.get_card_combos(2, self._cards)
+
+        
+        start_time = time.time()
+        self.flop = self.get_unique_combos(self.starting_hands, n_public=3)
+        log.info(f"Created Flop: {time.time() - start_time:.2f} seconds")
+
+        start_time = time.time()
+        self.turn = self.get_unique_combos(self.starting_hands, n_public=4)
+        log.info(f"Created Turn: {time.time() - start_time:.2f} seconds")
+
+        start_time = time.time()
+        self.river = self.get_unique_combos(self.starting_hands, n_public=5)
+        log.info(f"Created River: {time.time() - start_time:.2f} seconds")
+
+
+    def get_card_combos(self, num_cards: int, deck: list) -> list:
+        """
+        Get the card combinations for a given street.
+
+        Parameters
+        ----------
+        num_cards : int
+            Number of cards you want returned
+
+        Returns
+        -------
+            Combos of cards (Card) -> np.ndarray
+        """
+        return [c for c in combinations(deck, num_cards)]
+
+    def get_unique_combos(self, starting_hands: list, n_public: int) ->np.ndarray:
+        """
+        Get the card combinations for a given street.
+
+        Parameters
+        ----------
+        num_cards : int
+            Number of cards you want returned
+
+        Returns
+        -------
+            Combos of cards (Card) -> np.ndarray
+        """
+        our_cards = []
+        for starting_hand in tqdm(starting_hands):
+            valid_cards = [c for c in self._cards if c not in starting_hand]
+            perms = [starting_hand+a for a in combinations(valid_cards,n_public)]
+            our_cards.extend(perms)
+        return our_cards
