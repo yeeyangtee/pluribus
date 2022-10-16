@@ -127,4 +127,5 @@ class GameUtilityAbstract:
         res = random.sample(self.available_cards, 2)
         # # DEBUG
         # print('\n[DEBUG] Res from sample hand:', res)
-        return res
+        # MEOW breaking change here...
+        return tuple(res)
