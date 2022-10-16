@@ -54,12 +54,16 @@ def main(n_simulations_river: int,
     turn = storage.get_unique_combos(4)
     flop = storage.get_unique_combos(3)
 
-    storage.card_info_lut['pre_flop'] = processor.compute_preflop(storage._starting_hands)
+    # storage.card_info_lut['pre_flop'] = processor.compute_preflop(storage._starting_hands)
     storage.card_info_lut['river'], storage.centroids['river']  = processor.compute_river(river, n_river_clusters)
-    storage.card_info_lut['turn'], storage.centroids['turn']  = processor.compute_turn(turn, n_turn_clusters)
-    storage.card_info_lut['flop'], storage.centroids['flop']  = processor.compute_flop(flop, n_flop_clusters)
-
     storage.save()
+    storage.card_info_lut['river'] = None
+    storage.card_info_lut['turn'], storage.centroids['turn']  = processor.compute_turn(turn, n_turn_clusters)
+    storage.save()
+    storage.card_info_lut['turn'] = None
+    storage.card_info_lut['flop'], storage.centroids['flop']  = processor.compute_flop(flop, n_flop_clusters)
+    storage.save()
+    storage.card_info_lut['flop'] = None
 
 
 class CardInfoLutProcessor():
