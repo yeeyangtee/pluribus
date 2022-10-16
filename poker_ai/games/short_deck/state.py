@@ -260,29 +260,15 @@ class ShortDeckPokerState:
             Card information cluster lookup table.
         """
         if pickle_dir:
+            card_info_lut = {}
+            logger.info(f"Loading card information from pickle files at: {lut_path}")
+            
+            betting_stages = ["pre_flop", "flop", "turn", "river"]
+            for street in betting_stages:
+                card_info_lut_path = lut_path + f'/card_info_lut_{street}.pkl'
+                with open(card_info_lut_path,'rb') as f: 
+                    card_info_lut[street]= pickle.load(f)
 
-            logger.info(f"Loading card information from single file at {lut_path}")
-            card_info_lut_path = lut_path + '/card_info_lut.pkl'
-            with open(card_info_lut_path,'rb') as f: 
-                card_info_lut=  pickle.load(f)
-
-            # file_names = [
-            #     "preflop_lossless.pkl",
-            #     "flop_lossy_2.pkl",
-            #     "turn_lossy_2.pkl",
-            #     "river_lossy_2.pkl",
-            # ]
-            # betting_stages = ["pre_flop", "flop", "turn", "river"]
-            # card_info_lut: Dict[str, Dict[Tuple[int, ...], str]] = {}
-            # for file_name, betting_stage in zip(file_names, betting_stages):
-            #     file_path = os.path.join(lut_path, file_name)
-            #     if not os.path.isfile(file_path):
-            #         raise ValueError(
-            #             f"File path not found {file_path}. Ensure lut_path is "
-            #             f"set to directory containing pickle files"
-            #         )
-            #     with open(file_path, "rb") as fp:
-            #         card_info_lut[betting_stage] = joblib.load(fp)
         elif lut_path:
             logger.info(f"Loading card from single file at path: {lut_path}")
             card_info_lut = joblib.load(lut_path + '/card_info_lut.joblib')

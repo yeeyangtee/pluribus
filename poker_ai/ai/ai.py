@@ -54,7 +54,6 @@ def update_strategy(
 ):
     """
     Update pre flop strategy using a more theoretically sound approach.
-
     ...
 
     Parameters

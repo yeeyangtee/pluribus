@@ -14,7 +14,6 @@ import numpy as np
 from sklearn.cluster import KMeans, MiniBatchKMeans
 from scipy.stats import wasserstein_distance
 from tqdm import tqdm
-from poker_ai.clustering.card_combos import CardCombos, CardCombosAbstract
 from poker_ai.clustering.game_utility import GameUtility, GameUtilityAbstract
 from poker_ai.clustering.preflop import compute_preflop_lossless_abstraction
 from poker_ai.poker.evaluation import Evaluator
@@ -54,17 +53,20 @@ def main(n_simulations_river: int,
     turn = storage.get_unique_combos(4)
     flop = storage.get_unique_combos(3)
 
-    # storage.card_info_lut['pre_flop'] = processor.compute_preflop(storage._starting_hands)
-    storage.card_info_lut['river'], storage.centroids['river']  = processor.compute_river(river, n_river_clusters)
-    storage.save()
-    storage.card_info_lut['river'] = None
-    storage.card_info_lut['turn'], storage.centroids['turn']  = processor.compute_turn(turn, n_turn_clusters)
-    storage.save()
-    storage.card_info_lut['turn'] = None
-    storage.card_info_lut['flop'], storage.centroids['flop']  = processor.compute_flop(flop, n_flop_clusters)
-    storage.save()
-    storage.card_info_lut['flop'] = None
+    # preflop_lut = processor.compute_preflop(storage._starting_hands)
+    # storage.save('pre_flop', preflop_lut)
 
+    river_lut, river_centroids  = processor.compute_river(river, n_river_clusters)
+    storage.save('river', river_lut, river_centroids)
+    river_lut, river_centroids = None, None
+
+    turn_lut, turn_centroids  = processor.compute_turn(turn, n_turn_clusters)
+    storage.save('turn', turn_lut, turn_centroids)
+    turn_lut, turn_centroids = None, None
+
+    flop_lut, flop_centroids  = processor.compute_flop(flop, n_flop_clusters)
+    storage.save('flop', flop_lut, flop_centroids)
+    flop_lut, flop_centroids = None, None
 
 class CardInfoLutProcessor():
     '''Contains all the main methods to perform processing.'''
@@ -375,30 +377,6 @@ class CardInfoLutProcessor():
         return res
 
         
-        potential_aware_distribution_flop = np.zeros(len(self.centroids["turn"]))
-        for j in range(self.n_simulations_flop):
-            # randomly generating turn
-            turn_card = random.choice(available_cards)
-            our_hand = public[:2]
-            board = public[2:5]
-            # the_board = board + [turn_card]
-            the_board = (*board, turn_card)
-            # getting available cards
-            available_cards_turn = [x for x in available_cards if x != turn_card]
-
-            # This line is around 80% of compute time
-            turn_ehs_distribution = self.simulate_get_turn_ehs_distributions(
-                available_cards_turn, board=the_board, our_hand=our_hand,
-            )
-            
-            # This part is around 20% of compute time
-            dist = np.linalg.norm(turn_ehs_distribution - self.centroids["turn"], axis =1)
-            min_idx = dist.argmin()
-
-            # Now increment the cluster to which it belongs.
-            potential_aware_distribution_flop[min_idx] += 1 / self.n_simulations_flop
-        return potential_aware_distribution_flop
-
     @staticmethod
     def cluster(num_clusters: int, X: np.ndarray):
         # km = KMeans(
@@ -532,16 +510,17 @@ class CardInfoLutStore():
         
         return res
     
-    def save(self):
+    def save(self, street: str, card_info_lut: Dict, centroids: np.ndarray = None):
         print('Saving card LUT info and centroids....')
         if self.pickle_save:
             import pickle
-            self.card_info_lut_path = self.save_dir/'card_info_lut.pkl'
-            self.centroid_path = self.save_dir/'centroids.pkl'
-            with open(self.card_info_lut_path,'wb') as f: pickle.dump(self.card_info_lut, f)
+            self.card_info_lut_path = self.save_dir/f'card_info_lut_{street}.pkl'
+            self.centroid_path = self.save_dir/f'centroids_{street}.pkl'
+            with open(self.card_info_lut_path,'wb') as f: pickle.dump(card_info_lut, f)
             print(f'Completed save to {self.card_info_lut_path}') 
-            with open(self.centroid_path,'wb') as f: pickle.dump(self.centroids, f)
-            print(f'Completed save to {self.centroid_path}') 
+            if centroids is not None:
+                with open(self.centroid_path,'wb') as f: pickle.dump(centroids, f)
+                print(f'Completed save to {self.centroid_path}') 
         else:
             joblib.dump(self.card_info_lut, self.card_info_lut_path)
             print(f'Completed save to {self.card_info_lut_path}') 
