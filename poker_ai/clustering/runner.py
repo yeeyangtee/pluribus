@@ -34,7 +34,7 @@ Options:
 """
 import click
 
-from poker_ai.clustering.card_info_lut_builder import CardInfoLutBuilder
+from poker_ai.clustering.card_info_lut_builder import CardInfoLutProcessor, CardInfoLutStore
 
 
 @click.command()
@@ -122,19 +122,26 @@ def cluster(
     save_dir: str,
 ):
     """Run clustering."""
-    builder = CardInfoLutBuilder(
-        n_simulations_river,
-        n_simulations_turn,
-        n_simulations_flop,
-        low_card_rank,
-        high_card_rank,
-        save_dir
-    )
-    builder.compute(
-        n_river_clusters,
-        n_turn_clusters,
-        n_flop_clusters,
-    )
+    processor = CardInfoLutProcessor(n_simulations_river=n_simulations_river,
+        n_simulations_turn=n_simulations_turn,
+        n_simulations_flop=n_simulations_flop,
+        low_card_rank=low_card_rank,
+        high_card_rank=high_card_rank,
+        save_dir=save_dir)
+    
+    storage = CardInfoLutStore(low_card_rank=low_card_rank,
+        high_card_rank=high_card_rank,
+        save_dir=save_dir)
+
+    river = storage.get_unique_combos(5)
+    turn = storage.get_unique_combos(4)
+    flop = storage.get_unique_combos(3)
+
+     
+    storage.card_info['river'], storage.centroids['river']  = processor.compute_river(river, n_river_clusters)
+    storage.card_info['turn'], storage.centroids['turn']  = processor.compute_turn(turn, n_turn_clusters)
+    storage.card_info['flop'], storage.centroids['flop']  = processor.compute_flop(flop, n_flop_clusters)
+    
 
 
 if __name__ == "__main__":

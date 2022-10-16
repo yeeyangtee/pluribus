@@ -26,18 +26,18 @@ from poker_ai.poker.deck import get_all_suits
 
 log = logging.getLogger("poker_ai.clustering.runner")
 
-class CardInfoLutBuilder():
-    '''Initializes a CardInfoLutProcessor and CardInfoLutStore'''
-
-
-    pass
 
 def main(n_simulations_river: int,
         n_simulations_turn: int,
         n_simulations_flop: int,
         low_card_rank: int,
         high_card_rank: int,
+        n_river_clusters: int,
+        n_turn_clusters: int,
+        n_flop_clusters: int,
         save_dir: str,):
+
+
     processor = CardInfoLutProcessor(n_simulations_river=n_simulations_river,
         n_simulations_turn=n_simulations_turn,
         n_simulations_flop=n_simulations_flop,
@@ -48,14 +48,17 @@ def main(n_simulations_river: int,
         high_card_rank=high_card_rank,
         save_dir=save_dir)
 
-    storage.card_info = {}
-    storage.centroids = {}
+
     river = storage.get_unique_combos(5)
+    turn = storage.get_unique_combos(4)
+    flop = storage.get_unique_combos(3)
 
      
-    storage.card_info['river'], storage.centroids['river']  = processor.compute_river(river, 5)
+    storage.card_info_lut['river'], storage.centroids['river']  = processor.compute_river(river, n_river_clusters)
+    storage.card_info_lut['turn'], storage.centroids['turn']  = processor.compute_turn(turn, n_turn_clusters)
+    storage.card_info_lut['flop'], storage.centroids['flop']  = processor.compute_flop(flop, n_flop_clusters)
 
-    return storage
+    storage.save()
 
 
 class CardInfoLutProcessor():
@@ -77,11 +80,17 @@ class CardInfoLutProcessor():
         self.save_dir = save_dir
         self._evaluator = Evaluator()
 
+        # Grab from cardcombo, needed for eval
         suits: List[str] = sorted(list(get_all_suits()))
         ranks: List[int] = sorted(list(range(low_card_rank, high_card_rank + 1)))
         self._cards = [int(Card(rank, suit)) for suit in suits for rank in ranks]
         self._cards.sort(reverse=True)
 
+        # Keep a store of centroids also, low memory.
+        self.centroids = {}
+
+        # Funky CPU chunking control
+        self.cpu_divide = 4
 
     def compute(
         self, n_river_clusters: int, n_turn_clusters: int, n_flop_clusters: int,
@@ -117,7 +126,7 @@ class CardInfoLutProcessor():
 
     def compute_river(self, river, n_river_clusters: int):
         """Compute river clusters and create lookup table."""
-        log.info("Starting computation of river clusters.")
+        log.info("Starting computation of river LUT and clusters.")
         start = time.time()
 
         # Here is computing the expected hand strength of each.
@@ -126,80 +135,85 @@ class CardInfoLutProcessor():
                     executor.map(
                         self.process_river_ehs,
                         river,
-                        chunksize=len(river) // os.cpu_count(),
+                        chunksize=max(1, len(river) // (self.cpu_divide*os.cpu_count())),
                     ),
                     total=len(river)))
 
-            
-        end = time.time()
-        log.info(
-            f"Finished computation of river HS - took {end - start} seconds."
-        )
-
         river_ehs = np.array(river_ehs).reshape(-1, 3)
+        print('Shape of River EHS', river_ehs.shape)
+        log.info(f"Finished computation of river HS - took {time.time() - start} seconds.")
+
         # Here then cluster based on hand strengths.
-        centroids, clusters = self.cluster(
-            num_clusters=n_river_clusters, X=river_ehs
-        )
-        end = time.time()
-        log.info(
-            f"Finished computation and clustering of river - took {end - start} seconds."
-        )
+        centroids, clusters = self.cluster(num_clusters=n_river_clusters, X=river_ehs)
+        self.centroids['river'] = centroids
+        log.info(f"Finished computation of river clusters - took {time.time() - start} seconds.")
 
-        return self.create_card_lookup(clusters, river), centroids
 
-    def _compute_turn_clusters(self, turn, n_turn_clusters: int):
+
+        card_info_lut = self.create_card_lookup(clusters, river)
+        log.info(f"Finished computation of river LUT - took {time.time() - start} seconds.")
+        return card_info_lut, centroids
+
+    def compute_turn(self, turn, n_turn_clusters: int):
         """Compute turn clusters and create lookup table."""
-        log.info("Starting computation of turn clusters.")
+
+        log.info("Starting computation of turn LUT and clusters.")
         start = time.time()
 
         with concurrent.futures.ProcessPoolExecutor(os.cpu_count()) as executor:
-            self._turn_ehs_distributions = list(
-                tqdm(
+            turn_ehs = list(tqdm(
                     executor.map(
                         self.process_turn_ehs_distributions,
                         turn,
-                        chunksize=len(turn) // 64,
-                        # chunksize=64000,
+                        chunksize=max(1, len(turn) // (self.cpu_divide*os.cpu_count())),
                     ),
                     total=len(turn),
-                )
-            )
+                    ))
 
-        end = time.time()
-        log.info(
-            f"Finished computation of turn HS - took {end - start} seconds."
-        )
+        # Need reshape because multiprocess map returns a list of lists
+        turn_ehs = np.array(turn_ehs).reshape(-1, len(self.centroids["river"]))
+        print('Shape of Turn EHS', turn_ehs.shape)
+        log.info(f"Finished computation of turn EHS - took {time.time() - start} seconds.")
 
-        self.centroids["turn"], self._turn_clusters = self.cluster(
-            num_clusters=n_turn_clusters, X=self._turn_ehs_distributions
-        )
-        end = time.time()
-        log.info(f"Finished computation and clustering of turn - took {end - start} seconds.")
-        return None
-        return self.create_card_lookup(self._turn_clusters, self.turn)
+        centroids, clusters = self.cluster(num_clusters=n_turn_clusters, X=turn_ehs)
+        self.centroids['turn'] = centroids
+        log.info(f"Finished computation of turn clusters - took {time.time() - start} seconds.")
+        
+        card_info_lut = self.create_card_lookup(clusters, turn)
+        log.info(f"Finished computation of turn LUT - took {time.time() - start} seconds.")
 
-    def _compute_flop_clusters(self, n_flop_clusters: int):
+        return card_info_lut, centroids
+
+    def compute_flop(self, flop, n_flop_clusters: int):
         """Compute flop clusters and create lookup table."""
-        log.info("Starting computation of flop clusters.")
+        log.info("Starting computation of flop LUT and clusters.")
         start = time.time()
-        with concurrent.futures.ProcessPoolExecutor(os.cpu_count()-1) as executor:
-            self._flop_potential_aware_distributions = list(
-                tqdm(
+
+        with concurrent.futures.ProcessPoolExecutor(os.cpu_count()) as executor:
+            flop_ehs = list(tqdm(
                     executor.map(
                         self.process_flop_potential_aware_distributions,
-                        self.flop,
-                        chunksize=len(self.flop) // 64,
+                        flop,
+                        chunksize=max(1, len(flop) // (self.cpu_divide*os.cpu_count())),
                     ),
-                    total=len(self.flop),
-                )
-            )
-        self.centroids["flop"], self._flop_clusters = self.cluster(
-            num_clusters=n_flop_clusters, X=self._flop_potential_aware_distributions
+                    total=len(flop),
+                ))
+
+        flop_ehs = np.array(flop_ehs).reshape(-1, len(self.centroids["turn"]))
+        print('Shape of Flop EHS', flop_ehs.shape)
+        log.info(f"Finished computation of flop EHS - took {time.time() - start} seconds.")
+
+        centroids, clusters = self.cluster(
+            num_clusters=n_flop_clusters, X=flop_ehs
         )
-        end = time.time()
-        log.info(f"Finished computation of flop clusters - took {end - start} seconds.")
-        return self.create_card_lookup(self._flop_clusters, self.flop)
+       
+        log.info(f"Finished computation of flop clusters - took {time.time() - start} seconds.")
+       
+        card_info_lut = self.create_card_lookup(clusters, flop)
+        log.info(f"Finished computation of flop LUT - took {time.time() - start} seconds.")
+        
+        return card_info_lut, centroids
+
 
     def simulate_get_ehs(self, game: GameUtilityAbstract,) -> np.ndarray:
         """
@@ -215,7 +229,7 @@ class CardInfoLutProcessor():
         ehs : np.ndarray
             [win_rate, loss_rate, tie_rate]
         """
-        ehs: np.ndarray = np.zeros(3)
+        ehs = [0,0,0]
         for _ in range(self.n_simulations_river):
             idx: int = game.get_winner()
             # increment win rate for winner/tie
@@ -252,7 +266,7 @@ class CardInfoLutProcessor():
         for _ in range(self.n_simulations_turn):
             river_card = random.choice(available_cards)
             # Temporary board.
-            the_board = board + [river_card]
+            the_board = (*board, river_card)
 
             game = GameUtilityAbstract(our_hand=our_hand, board=the_board, 
                     cards=self._cards, evaluator=self._evaluator)
@@ -290,7 +304,7 @@ class CardInfoLutProcessor():
 
     @staticmethod
     def get_available_cards(
-        cards: np.ndarray, unavailable_cards: np.ndarray
+        cards: np.ndarray, our_hand: np.ndarray, board,
     ) -> np.ndarray:
         """
         Get all cards that are available.
@@ -306,10 +320,10 @@ class CardInfoLutProcessor():
             Available cards
         """
         # Turn into set for O(1) lookup speed.
-        unavailable_cards = set(unavailable_cards)
+        unavailable_cards = set(our_hand+board)
         return [c for c in cards if c not in unavailable_cards]
 
-    def process_turn_ehs_distributions(self, public: np.ndarray) -> np.ndarray:
+    def process_turn_ehs_distributions(self, thing) -> np.ndarray:
         """
         Get the potential aware turn distribution for a particular card combo.
 
@@ -322,18 +336,21 @@ class CardInfoLutProcessor():
         -------
             Potential aware turn distributions
         """
-
-        available_cards = self.get_available_cards(
-            cards=self._cards, unavailable_cards=public
-        )
-        # sample river cards and run a simulation
-        turn_ehs_distribution = self.simulate_get_turn_ehs_distributions(
-            available_cards, board=public[2:6], our_hand=public[:2],
-        )
-        return turn_ehs_distribution
+        our_hand, public = thing
+        res = []
+        for board in public:
+            available_cards = self.get_available_cards(
+                cards=self._cards, board=board, our_hand=our_hand
+            )
+            # sample river cards and run a simulation
+            turn_ehs_distribution = self.simulate_get_turn_ehs_distributions(
+                available_cards, board=board, our_hand=our_hand,
+            )
+            res.append(turn_ehs_distribution)
+        return res
 
     def process_flop_potential_aware_distributions(
-        self, public: list,
+        self, thing,
     ) -> np.ndarray:
         """
         Get the potential aware flop distribution for a particular card combo.
@@ -347,16 +364,46 @@ class CardInfoLutProcessor():
         -------
             Potential aware flop distributions
         """
-        available_cards = self.get_available_cards(
-            cards=self._cards, unavailable_cards=public
-        )
+        our_hand, public = thing
+        res = []
+        for board in public:
+            available_cards = self.get_available_cards(
+                cards=self._cards, board=board, our_hand=our_hand
+            )
+
+            potential_aware_distribution_flop = np.zeros(len(self.centroids["turn"]))
+            for j in range(self.n_simulations_flop):
+                # randomly generating turn
+                turn_card = random.choice(available_cards)
+
+                # the_board = board + [turn_card]
+                the_board = (*board, turn_card)
+                # getting available cards
+                available_cards_turn = [x for x in available_cards if x != turn_card]
+
+                # This line is around 80% of compute time
+                turn_ehs_distribution = self.simulate_get_turn_ehs_distributions(
+                    available_cards_turn, board=the_board, our_hand=our_hand,
+                )
+                
+                # This part is around 20% of compute time
+                dist = np.linalg.norm(turn_ehs_distribution - self.centroids["turn"], axis =1)
+                min_idx = dist.argmin()
+
+                # Now increment the cluster to which it belongs.
+                potential_aware_distribution_flop[min_idx] += 1 / self.n_simulations_flop
+            res.append(potential_aware_distribution_flop)
+        return res
+
+        
         potential_aware_distribution_flop = np.zeros(len(self.centroids["turn"]))
         for j in range(self.n_simulations_flop):
             # randomly generating turn
             turn_card = random.choice(available_cards)
             our_hand = public[:2]
             board = public[2:5]
-            the_board = board + [turn_card]
+            # the_board = board + [turn_card]
+            the_board = (*board, turn_card)
             # getting available cards
             available_cards_turn = [x for x in available_cards if x != turn_card]
 
@@ -500,3 +547,13 @@ class CardInfoLutStore():
         res = [(start, combinations(valid, n_public)) for start, valid in zip(self.starting_hands, valid_cards)]
         
         return res
+    
+    def save(self):
+        print('Saving card LUT info and centroids....')
+        joblib.dump(self.card_info_lut, self.card_info_lut_path)
+        print(f'Completed save to {self.card_info_lut_path}') 
+        joblib.dump(self.centroids, self.centroid_path)
+        print(f'Completed save to {self.centroid_path}') 
+
+if __name__ == "__main__":
+    main()
