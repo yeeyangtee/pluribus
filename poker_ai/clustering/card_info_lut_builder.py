@@ -35,6 +35,7 @@ def main(n_simulations_river: int,
         n_river_clusters: int,
         n_turn_clusters: int,
         n_flop_clusters: int,
+        pickle_save: bool,
         save_dir: str,):
 
 
@@ -46,14 +47,14 @@ def main(n_simulations_river: int,
         save_dir=save_dir)
     storage = CardInfoLutStore(low_card_rank=low_card_rank,
         high_card_rank=high_card_rank,
+        pickle_save = pickle_save,
         save_dir=save_dir)
-
 
     river = storage.get_unique_combos(5)
     turn = storage.get_unique_combos(4)
     flop = storage.get_unique_combos(3)
 
-     
+    storage.card_info_lut['pre_flop'] = processor.compute_preflop(storage._starting_hands)
     storage.card_info_lut['river'], storage.centroids['river']  = processor.compute_river(river, n_river_clusters)
     storage.card_info_lut['turn'], storage.centroids['turn']  = processor.compute_turn(turn, n_turn_clusters)
     storage.card_info_lut['flop'], storage.centroids['flop']  = processor.compute_flop(flop, n_flop_clusters)
@@ -92,37 +93,11 @@ class CardInfoLutProcessor():
         # Funky CPU chunking control
         self.cpu_divide = 4
 
-    def compute(
-        self, n_river_clusters: int, n_turn_clusters: int, n_flop_clusters: int,
-    ):
-        """Compute all clusters and save to card_info_lut dictionary.
+    def compute_preflop(self, starting_hands):
+                
+        preflop =  compute_preflop_lossless_abstraction(starting_hands)
+        return preflop
 
-        Will attempt to load previous progress and will save after each cluster
-        is computed.
-        """
-        log.info("Starting computation of clusters.")
-        start = time.time()
-        if "pre_flop" not in self.card_info_lut:
-            self.card_info_lut["pre_flop"] = compute_preflop_lossless_abstraction(
-                builder=self
-            )
-            joblib.dump(self.card_info_lut, self.card_info_lut_path)
-        if "river" not in self.card_info_lut:
-            self.card_info_lut["river"] = self._compute_river_clusters(
-                n_river_clusters,
-            )
-            joblib.dump(self.card_info_lut, self.card_info_lut_path)
-            joblib.dump(self.centroids, self.centroid_path)
-        if "turn" not in self.card_info_lut:
-            self.card_info_lut["turn"] = self._compute_turn_clusters(n_turn_clusters)
-            joblib.dump(self.card_info_lut, self.card_info_lut_path)
-            joblib.dump(self.centroids, self.centroid_path)
-        if "flop" not in self.card_info_lut:
-            self.card_info_lut["flop"] = self._compute_flop_clusters(n_flop_clusters)
-            joblib.dump(self.card_info_lut, self.card_info_lut_path)
-            joblib.dump(self.centroids, self.centroid_path)
-        end = time.time()
-        log.info(f"Finished computation of clusters - took {end - start} seconds.")
 
     def compute_river(self, river, n_river_clusters: int):
         """Compute river clusters and create lookup table."""
@@ -488,8 +463,11 @@ class CardInfoLutStore():
         self,
         low_card_rank: int,
         high_card_rank: int,
+        pickle_save: bool,
         save_dir: str,
     ):
+        self.pickle_save = pickle_save
+        self.save_dir = Path(save_dir)
         self.card_info_lut_path: Path = Path(save_dir) / "card_info_lut.joblib"
         self.centroid_path: Path = Path(save_dir) / "centroids.joblib"
         try:
@@ -501,6 +479,8 @@ class CardInfoLutStore():
 
         suits: List[str] = sorted(list(get_all_suits()))
         ranks: List[int] = sorted(list(range(low_card_rank, high_card_rank + 1)))
+        self._cards = [Card(rank, suit) for suit in suits for rank in ranks]
+        self._starting_hands = self.get_card_combos(2, self._cards)
         self.cards = [int(Card(rank, suit)) for suit in suits for rank in ranks]
         self.cards.sort(reverse=True)
         self.starting_hands = self.get_card_combos(2, self.cards)
@@ -550,10 +530,19 @@ class CardInfoLutStore():
     
     def save(self):
         print('Saving card LUT info and centroids....')
-        joblib.dump(self.card_info_lut, self.card_info_lut_path)
-        print(f'Completed save to {self.card_info_lut_path}') 
-        joblib.dump(self.centroids, self.centroid_path)
-        print(f'Completed save to {self.centroid_path}') 
+        if self.pickle_save:
+            import pickle
+            self.card_info_lut_path = self.save_dir/'card_info_lut.pkl'
+            self.centroid_path = self.save_dir/'centroids.pkl'
+            with open(self.card_info_lut_path,'wb') as f: pickle.dump(self.card_info_lut, f)
+            print(f'Completed save to {self.card_info_lut_path}') 
+            with open(self.centroid_path,'wb') as f: pickle.dump(self.centroids, f)
+            print(f'Completed save to {self.centroid_path}') 
+        else:
+            joblib.dump(self.card_info_lut, self.card_info_lut_path)
+            print(f'Completed save to {self.card_info_lut_path}') 
+            joblib.dump(self.centroids, self.centroid_path)
+            print(f'Completed save to {self.centroid_path}') 
 
 if __name__ == "__main__":
     main()

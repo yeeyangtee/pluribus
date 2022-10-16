@@ -9,6 +9,7 @@ import os
 from typing import Any, Dict, List, Optional, Tuple
 
 import joblib
+import pickle
 
 from poker_ai import utils
 from poker_ai.poker.card import Card
@@ -93,7 +94,7 @@ class ShortDeckPokerState:
             self.card_info_lut = {}
         # Get a reference of the pot from the first player.
         self._table = PokerTable(
-            players=players, pot=players[0].pot, include_ranks=list(range(2,15))
+            players=players, pot=players[0].pot, include_ranks=list(range(10,15))
         )
         # Get a reference of the initial number of chips for the payout.
         self._initial_n_chips = players[0].n_chips
@@ -259,24 +260,29 @@ class ShortDeckPokerState:
             Card information cluster lookup table.
         """
         if pickle_dir:
-            logger.info("Loading card information lut in deprecated way")
-            file_names = [
-                "preflop_lossless.pkl",
-                "flop_lossy_2.pkl",
-                "turn_lossy_2.pkl",
-                "river_lossy_2.pkl",
-            ]
-            betting_stages = ["pre_flop", "flop", "turn", "river"]
-            card_info_lut: Dict[str, Dict[Tuple[int, ...], str]] = {}
-            for file_name, betting_stage in zip(file_names, betting_stages):
-                file_path = os.path.join(lut_path, file_name)
-                if not os.path.isfile(file_path):
-                    raise ValueError(
-                        f"File path not found {file_path}. Ensure lut_path is "
-                        f"set to directory containing pickle files"
-                    )
-                with open(file_path, "rb") as fp:
-                    card_info_lut[betting_stage] = joblib.load(fp)
+
+            logger.info(f"Loading card information from single file at {lut_path}")
+            card_info_lut_path = lut_path + '/card_info_lut.pkl'
+            with open(card_info_lut_path,'rb') as f: 
+                card_info_lut=  pickle.load(f)
+
+            # file_names = [
+            #     "preflop_lossless.pkl",
+            #     "flop_lossy_2.pkl",
+            #     "turn_lossy_2.pkl",
+            #     "river_lossy_2.pkl",
+            # ]
+            # betting_stages = ["pre_flop", "flop", "turn", "river"]
+            # card_info_lut: Dict[str, Dict[Tuple[int, ...], str]] = {}
+            # for file_name, betting_stage in zip(file_names, betting_stages):
+            #     file_path = os.path.join(lut_path, file_name)
+            #     if not os.path.isfile(file_path):
+            #         raise ValueError(
+            #             f"File path not found {file_path}. Ensure lut_path is "
+            #             f"set to directory containing pickle files"
+            #         )
+            #     with open(file_path, "rb") as fp:
+            #         card_info_lut[betting_stage] = joblib.load(fp)
         elif lut_path:
             logger.info(f"Loading card from single file at path: {lut_path}")
             card_info_lut = joblib.load(lut_path + '/card_info_lut.joblib')
@@ -398,12 +404,12 @@ class ShortDeckPokerState:
         if self._pickle_dir:
             lookup_cards = tuple([card.eval_card for card in cards])
         else:
-            lookup_cards = tuple(cards)
+            lookup_cards = tuple([int(card) for card in cards])
         try:
             cards_cluster = self.card_info_lut[self._betting_stage][lookup_cards]
         except KeyError:
             if self.betting_stage not in {"terminal", "show_down"}:
-                raise ValueError("You should have these cards in your lut.")
+                raise ValueError(f"Stage {self._betting_stage}. You should have these cards in your lut. {lookup_cards}")
             return "default info set, please ensure you load it correctly"
         # Convert history from a dict of lists to a list of dicts as I'm
         # paranoid about JSON's lack of care with insertion order.

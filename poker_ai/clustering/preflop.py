@@ -5,7 +5,7 @@ import math
 from poker_ai.poker.card import Card
 
 
-def make_starting_hand_lossless(starting_hand, short_deck) -> int:
+def make_starting_hand_lossless(starting_hand) -> int:
     """"""
     ranks = []
     suits = []
@@ -48,29 +48,35 @@ def make_starting_hand_lossless(starting_hand, short_deck) -> int:
         return 14 if suited else 24
 
 
-def compute_preflop_lossless_abstraction(builder) -> Dict[Tuple[Card, Card], int]:
+def compute_preflop_lossless_abstraction(starting_hands) -> Dict[Tuple[Card, Card], int]:
     """Compute the preflop abstraction dictionary.
 
     Only works for the short deck presently.
     """
-    # Making sure this is 20 card deck with 2-9 removed
-    allowed_ranks = {10, 11, 12, 13, 14}
-    found_ranks = set([c.rank_int for c in builder._cards])
-    if found_ranks != allowed_ranks:
-        raise ValueError(
-            f"Preflop lossless abstraction only works for a short deck with "
-            f"ranks [10, jack, queen, king, ace]. What was specified="
-            f"{found_ranks} doesn't equal what is allowed={allowed_ranks}"
-        )
+    # MEOW dumb stuff to check random shit.# Making sure this is 20 card deck with 2-9 removed
+    # allowed_ranks = {10, 11, 12, 13, 14}
+    # found_ranks = set([c.rank_int for c in cards])
+    # if found_ranks != allowed_ranks:
+    #     raise ValueError(
+    #         f"Preflop lossless abstraction only works for a short deck with "
+    #         f"ranks [10, jack, queen, king, ace]. What was specified="
+    #         f"{found_ranks} doesn't equal what is allowed={allowed_ranks}"
+    #     )
     # Getting combos and indexing with lossless abstraction
     preflop_lossless: Dict[Tuple[Card, Card], int] = {}
-    for starting_hand in builder.starting_hands:
+    for starting_hand in starting_hands:
         starting_hand = sorted(
             list(starting_hand),
             key=operator.attrgetter("eval_card"),
             reverse=True
         )
-        preflop_lossless[tuple(starting_hand)] = make_starting_hand_lossless(
-            starting_hand, builder
+
+        # Direct store INT
+        preflop_lossless[tuple([int(c) for c in starting_hand])] = make_starting_hand_lossless(
+            starting_hand
         )
+        # Old method storing Card obj
+        # preflop_lossless[tuple(starting_hand)] = make_starting_hand_lossless(
+        #     starting_hand
+        # )
     return preflop_lossless
