@@ -448,6 +448,7 @@ class CardInfoLutStore():
     ):
         self.pickle_save = pickle_save
         self.save_dir = Path(save_dir)
+        self.save_dir.mkdir(exist_ok=True, parents=True)
         self.card_info_lut_path: Path = Path(save_dir) / "card_info_lut.joblib"
         self.centroid_path: Path = Path(save_dir) / "centroids.joblib"
         try:
