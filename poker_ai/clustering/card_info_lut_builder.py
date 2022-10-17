@@ -150,6 +150,7 @@ class CardInfoLutProcessor():
                     ))
 
         # Need reshape because multiprocess map returns a list of lists
+        turn_ehs = np.array(turn_ehs).reshape(-1, len(self.centroids["river"]))
         print('Shape of Turn EHS', turn_ehs.shape)
         log.info(f"Finished computation of turn EHS - took {time.time() - start} seconds.")
 
