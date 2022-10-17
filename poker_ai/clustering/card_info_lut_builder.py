@@ -129,8 +129,6 @@ class CardInfoLutProcessor():
         self.centroids['river'] = centroids
         log.info(f"Finished computation of river clusters - took {time.time() - start} seconds.")
 
-
-
         card_info_lut = self.create_card_lookup(clusters, river)
         log.info(f"Finished computation of river LUT - took {time.time() - start} seconds.")
         return card_info_lut, centroids
@@ -152,7 +150,6 @@ class CardInfoLutProcessor():
                     ))
 
         # Need reshape because multiprocess map returns a list of lists
-        turn_ehs = np.array(turn_ehs).reshape(-1, len(self.centroids["river"]))
         print('Shape of Turn EHS', turn_ehs.shape)
         log.info(f"Finished computation of turn EHS - took {time.time() - start} seconds.")
 
@@ -160,6 +157,8 @@ class CardInfoLutProcessor():
         self.centroids['turn'] = centroids
         log.info(f"Finished computation of turn clusters - took {time.time() - start} seconds.")
         
+        del turn_ehs # Try to free memory
+
         card_info_lut = self.create_card_lookup(clusters, turn)
         log.info(f"Finished computation of turn LUT - took {time.time() - start} seconds.")
 
@@ -187,9 +186,8 @@ class CardInfoLutProcessor():
         centroids, clusters = self.cluster(
             num_clusters=n_flop_clusters, X=flop_ehs
         )
-       
         log.info(f"Finished computation of flop clusters - took {time.time() - start} seconds.")
-       
+
         card_info_lut = self.create_card_lookup(clusters, flop)
         log.info(f"Finished computation of flop LUT - took {time.time() - start} seconds.")
         

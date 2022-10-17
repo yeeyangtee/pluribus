@@ -56,7 +56,7 @@ from poker_ai.clustering.card_info_lut_builder import CardInfoLutProcessor, Card
 )
 @click.option(
     "--n_river_clusters",
-    default=50,
+    default=200,
     help=(
         "The number of card information buckets we would like to create for "
         "the river. We recommend to start small."
@@ -64,7 +64,7 @@ from poker_ai.clustering.card_info_lut_builder import CardInfoLutProcessor, Card
 )
 @click.option(
     "--n_turn_clusters",
-    default=50,
+    default=200,
     help=(
         "The number of card information buckets we would like to create for "
         "the turn. We recommend to start small."
@@ -72,7 +72,7 @@ from poker_ai.clustering.card_info_lut_builder import CardInfoLutProcessor, Card
 )
 @click.option(
     "--n_flop_clusters",
-    default=50,
+    default=200,
     help=(
         "The number of card information buckets we would like to create for "
         "the flop. We recommend to start small."
@@ -110,39 +110,55 @@ from poker_ai.clustering.card_info_lut_builder import CardInfoLutProcessor, Card
         "centroids."
     )
 )
-def cluster(
-    low_card_rank: int,
-    high_card_rank: int,
-    n_river_clusters: int,
-    n_turn_clusters: int,
-    n_flop_clusters: int,
-    n_simulations_river: int,
-    n_simulations_turn: int,
-    n_simulations_flop: int,
-    save_dir: str,
-):
-    """Run clustering."""
+@click.option(
+    "--pickle_save",
+    default=True,
+    help=(
+        "Whether to pickle the card lut info."
+    )
+)
+
+def cluster(n_simulations_river: int,
+        n_simulations_turn: int,
+        n_simulations_flop: int,
+        low_card_rank: int,
+        high_card_rank: int,
+        n_river_clusters: int,
+        n_turn_clusters: int,
+        n_flop_clusters: int,
+        pickle_save: bool,
+        save_dir: str,):
+
+
     processor = CardInfoLutProcessor(n_simulations_river=n_simulations_river,
         n_simulations_turn=n_simulations_turn,
         n_simulations_flop=n_simulations_flop,
         low_card_rank=low_card_rank,
         high_card_rank=high_card_rank,
         save_dir=save_dir)
-    
     storage = CardInfoLutStore(low_card_rank=low_card_rank,
         high_card_rank=high_card_rank,
+        pickle_save = pickle_save,
         save_dir=save_dir)
 
     river = storage.get_unique_combos(5)
     turn = storage.get_unique_combos(4)
     flop = storage.get_unique_combos(3)
 
-     
-    storage.card_info['river'], storage.centroids['river']  = processor.compute_river(river, n_river_clusters)
-    storage.card_info['turn'], storage.centroids['turn']  = processor.compute_turn(turn, n_turn_clusters)
-    storage.card_info['flop'], storage.centroids['flop']  = processor.compute_flop(flop, n_flop_clusters)
-    
+    # preflop_lut = processor.compute_preflop(storage._starting_hands)
+    # storage.save('pre_flop', preflop_lut)
 
+    river_lut, river_centroids  = processor.compute_river(river, n_river_clusters)
+    storage.save('river', river_lut, river_centroids)
+    river_lut, river_centroids = None, None
+
+    turn_lut, turn_centroids  = processor.compute_turn(turn, n_turn_clusters)
+    storage.save('turn', turn_lut, turn_centroids)
+    turn_lut, turn_centroids = None, None
+
+    flop_lut, flop_centroids  = processor.compute_flop(flop, n_flop_clusters)
+    storage.save('flop', flop_lut, flop_centroids)
+    flop_lut, flop_centroids = None, None
 
 if __name__ == "__main__":
     cluster()
