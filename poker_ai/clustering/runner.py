@@ -111,8 +111,8 @@ from poker_ai.clustering.card_info_lut_builder import CardInfoLutProcessor, Card
     )
 )
 @click.option(
-    "--pickle_save",
-    default=True,
+    "--save_mode",
+    default='pickle',
     help=(
         "Whether to pickle the card lut info."
     )
@@ -126,7 +126,7 @@ def cluster(n_simulations_river: int,
         n_river_clusters: int,
         n_turn_clusters: int,
         n_flop_clusters: int,
-        pickle_save: bool,
+        save_mode: str,
         save_dir: str,):
 
 
@@ -138,7 +138,7 @@ def cluster(n_simulations_river: int,
         save_dir=save_dir)
     storage = CardInfoLutStore(low_card_rank=low_card_rank,
         high_card_rank=high_card_rank,
-        pickle_save = pickle_save,
+        save_mode = save_mode,
         save_dir=save_dir)
 
     river = storage.get_unique_combos(5)
@@ -148,9 +148,9 @@ def cluster(n_simulations_river: int,
     # preflop_lut = processor.compute_preflop(storage._starting_hands)
     # storage.save('pre_flop', preflop_lut)
 
-    river_lut, river_centroids  = processor.compute_river(river, n_river_clusters)
-    storage.save('river', river_lut, river_centroids)
-    river_lut, river_centroids = None, None
+    # river_lut, river_centroids  = processor.compute_river(river, n_river_clusters)
+    # storage.save('river', river_lut, river_centroids)
+    # river_lut, river_centroids = None, None
 
     turn_lut, turn_centroids  = processor.compute_turn(turn, n_turn_clusters)
     storage.save('turn', turn_lut, turn_centroids)

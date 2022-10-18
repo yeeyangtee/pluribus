@@ -21,7 +21,7 @@ from poker_ai.poker.evaluation import Evaluator
 from poker_ai.poker.card import Card
 
 from poker_ai.poker.deck import get_all_suits
-
+import pickle
 
 log = logging.getLogger("poker_ai.clustering.runner")
 
@@ -34,7 +34,7 @@ def main(n_simulations_river: int,
         n_river_clusters: int,
         n_turn_clusters: int,
         n_flop_clusters: int,
-        pickle_save: bool,
+        save_mode: str,
         save_dir: str,):
 
 
@@ -46,7 +46,7 @@ def main(n_simulations_river: int,
         save_dir=save_dir)
     storage = CardInfoLutStore(low_card_rank=low_card_rank,
         high_card_rank=high_card_rank,
-        pickle_save = pickle_save,
+        save_mode = save_mode,
         save_dir=save_dir)
 
     river = storage.get_unique_combos(5)
@@ -56,9 +56,10 @@ def main(n_simulations_river: int,
     # preflop_lut = processor.compute_preflop(storage._starting_hands)
     # storage.save('pre_flop', preflop_lut)
 
-    river_lut, river_centroids  = processor.compute_river(river, n_river_clusters)
-    storage.save('river', river_lut, river_centroids)
-    river_lut, river_centroids = None, None
+    # river_lut, river_centroids  = processor.compute_river(river, n_river_clusters)
+    # storage.save('river', river_lut, river_centroids)
+    # river_lut, river_centroids = None, None
+
 
     turn_lut, turn_centroids  = processor.compute_turn(turn, n_turn_clusters)
     storage.save('turn', turn_lut, turn_centroids)
@@ -95,9 +96,11 @@ class CardInfoLutProcessor():
 
         # Keep a store of centroids also, low memory.
         self.centroids = {}
-
+        with open(Path(self.save_dir)/'centroids_river.pkl','rb') as f:
+            self.centroids['river'] = pickle.load(f)
         # Funky CPU chunking control
         self.cpu_divide = 4
+
 
     def compute_preflop(self, starting_hands):
                 
@@ -418,10 +421,14 @@ class CardInfoLutProcessor():
         lossy_lookup : Dict
             Lookup table for finding cluster ids.
         """
+        # cardlut = create_card_lut(10, 14) # MEOW hardcoded
         log.info("Creating lookup table.")
         lossy_lookup = {}
         for i, (starthand,valids) in enumerate(tqdm(card_combos)):
             for valid in valids:
+                # key = [cardlut[s] for s in starthand] + [cardlut[s] for s in valid]
+                # key = ''.join(key)
+                # lossy_lookup[key] = int(clusters[i])
                 lossy_lookup[tuple(starthand+valid)] = clusters[i]
         return lossy_lookup
 
@@ -444,10 +451,10 @@ class CardInfoLutStore():
         self,
         low_card_rank: int,
         high_card_rank: int,
-        pickle_save: bool,
+        save_mode: str,
         save_dir: str,
     ):
-        self.pickle_save = pickle_save
+        self.save_mode = save_mode
         self.save_dir = Path(save_dir)
         self.save_dir.mkdir(exist_ok=True, parents=True)
         self.card_info_lut_path: Path = Path(save_dir) / "card_info_lut.joblib"
@@ -512,7 +519,7 @@ class CardInfoLutStore():
     
     def save(self, street: str, card_info_lut: Dict, centroids: np.ndarray = None):
         print('Saving card LUT info and centroids....')
-        if self.pickle_save:
+        if self.save_mode == 'pickle':
             import pickle
             self.card_info_lut_path = self.save_dir/f'card_info_lut_{street}.pkl'
             self.centroid_path = self.save_dir/f'centroids_{street}.pkl'
@@ -521,11 +528,62 @@ class CardInfoLutStore():
             if centroids is not None:
                 with open(self.centroid_path,'wb') as f: pickle.dump(centroids, f)
                 print(f'Completed save to {self.centroid_path}') 
-        else:
+        elif self.save_mode == 'h5py':
+            import h5py
+            self.card_info_lut_path = self.save_dir/f'card_info_lut.h5'
+            self.centroid_path = self.save_dir/f'centroids.h5'
+            with h5py.File(self.card_info_lut_path, 'a') as f:
+                f.create_dataset(street, data=card_info_lut)
+            print(f'Completed save to {self.card_info_lut_path}')
+            if centroids is not None:
+                with h5py.File(self.centroid_path, 'a') as f:
+                    f.create_dataset(street, data=centroids)
+                print(f'Completed save to {self.centroid_path}')
+        elif self.save_mode == 'joblib':
             joblib.dump(self.card_info_lut, self.card_info_lut_path)
             print(f'Completed save to {self.card_info_lut_path}') 
             joblib.dump(self.centroids, self.centroid_path)
             print(f'Completed save to {self.centroid_path}') 
+
+    def save_abstract(self, street: str, card_info_lut: Dict, centroids: np.ndarray = None):
+        print('Saving card LUT info and centroids....')
+        if self.save_mode == 'pickle':
+            import pickle
+            self.card_info_lut_path = self.save_dir/f'card_info_lut_{street}.pkl'
+            self.centroid_path = self.save_dir/f'centroids_{street}.pkl'
+            with open(self.card_info_lut_path,'wb') as f: pickle.dump(card_info_lut, f)
+            print(f'Completed save to {self.card_info_lut_path}') 
+            if centroids is not None:
+                with open(self.centroid_path,'wb') as f: pickle.dump(centroids, f)
+                print(f'Completed save to {self.centroid_path}') 
+        elif self.save_mode == 'h5py':
+            import h5py
+            self.card_info_lut_path = self.save_dir/f'card_info_lut.h5'
+            self.centroid_path = self.save_dir/f'centroids.h5'
+            with h5py.File(self.card_info_lut_path, 'a') as f:
+                f.create_dataset(street, data=card_info_lut)
+            print(f'Completed save to {self.card_info_lut_path}')
+            if centroids is not None:
+                with h5py.File(self.centroid_path, 'a') as f:
+                    f.create_dataset(street, data=centroids)
+                print(f'Completed save to {self.centroid_path}')
+        elif self.save_mode == 'joblib':
+            joblib.dump(self.card_info_lut, self.card_info_lut_path)
+            print(f'Completed save to {self.card_info_lut_path}') 
+            joblib.dump(self.centroids, self.centroid_path)
+            print(f'Completed save to {self.centroid_path}')
+            
+def create_card_lut(low_card_rank, high_card_rank):
+    suits: List[str] = sorted(list(get_all_suits()))
+    ranks: List[int] = sorted(list(range(low_card_rank, high_card_rank + 1)))
+    cards = [int(Card(rank, suit)) for suit in suits for rank in ranks]
+    cards.sort(reverse=True)
+
+    lut = {}
+    for i, c in enumerate(cards):
+        lut[c] = f'{i:02d}'
+    return lut
+
 
 if __name__ == "__main__":
     main()
