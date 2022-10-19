@@ -407,7 +407,9 @@ class ShortDeckPokerState:
             reverse=True,
         )
         if self._pickle_dir:
-            lookup_cards = tuple([card.eval_card for card in cards])
+            # lookup_cards = tuple([card.eval_card for card in cards])
+            # MEOW hacky patch here to handle string representation of card info. Also, not sure where this obj is defined in the main agent loop
+            lookup_cards = ''.join([self.cardlut[int(c)] for c in cards])
         else:
             # lookup_cards = tuple([int(card) for card in cards])
             # MEOW hacky patch here to handle string representation of card info. Also, not sure where this obj is defined in the main agent loop
