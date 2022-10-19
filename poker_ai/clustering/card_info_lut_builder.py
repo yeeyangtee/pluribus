@@ -35,7 +35,8 @@ def main(n_simulations_river: int,
         n_turn_clusters: int,
         n_flop_clusters: int,
         save_mode: str,
-        save_dir: str,):
+        save_dir: str,
+        card_repr: str,):
 
 
     processor = CardInfoLutProcessor(n_simulations_river=n_simulations_river,
@@ -43,7 +44,8 @@ def main(n_simulations_river: int,
         n_simulations_flop=n_simulations_flop,
         low_card_rank=low_card_rank,
         high_card_rank=high_card_rank,
-        save_dir=save_dir)
+        save_dir=save_dir,
+        card_repr=card_repr)
     storage = CardInfoLutStore(low_card_rank=low_card_rank,
         high_card_rank=high_card_rank,
         save_mode = save_mode,
@@ -53,12 +55,12 @@ def main(n_simulations_river: int,
     turn = storage.get_unique_combos(4)
     flop = storage.get_unique_combos(3)
 
-    # preflop_lut = processor.compute_preflop(storage._starting_hands)
-    # storage.save('pre_flop', preflop_lut)
+    preflop_lut = processor.compute_preflop(storage._starting_hands, card_repr)
+    storage.save('pre_flop', preflop_lut)
 
-    # river_lut, river_centroids  = processor.compute_river(river, n_river_clusters)
-    # storage.save('river', river_lut, river_centroids)
-    # river_lut, river_centroids = None, None
+    river_lut, river_centroids  = processor.compute_river(river, n_river_clusters)
+    storage.save('river', river_lut, river_centroids)
+    river_lut, river_centroids = None, None
 
 
     turn_lut, turn_centroids  = processor.compute_turn(turn, n_turn_clusters)
@@ -79,6 +81,7 @@ class CardInfoLutProcessor():
         low_card_rank: int,
         high_card_rank: int,
         save_dir: str,
+        card_repr: str,
     ):
         self.n_simulations_river = n_simulations_river
         self.n_simulations_turn = n_simulations_turn
@@ -86,6 +89,9 @@ class CardInfoLutProcessor():
         self.low_card_rank = low_card_rank
         self.high_card_rank = high_card_rank
         self.save_dir = save_dir
+        self.card_repr = card_repr
+
+        # For eval
         self._evaluator = Evaluator()
 
         # Grab from cardcombo, needed for eval
@@ -96,16 +102,20 @@ class CardInfoLutProcessor():
 
         # Keep a store of centroids also, low memory.
         self.centroids = {}
-        with open(Path(self.save_dir)/'centroids_river.pkl','rb') as f:
-            self.centroids['river'] = pickle.load(f)
-        # Funky CPU chunking control
+        try: 
+            with open(Path(self.save_dir)/'centroids_river.pkl','rb') as f:
+                self.centroids['river'] = pickle.load(f)
+        except:
+            log.info('No river centroids found')
+        
+        # Hacky CPU chunking control, not sure what's the most efficient.
         self.cpu_divide = 4
 
 
-    def compute_preflop(self, starting_hands):
-                
-        preflop =  compute_preflop_lossless_abstraction(starting_hands)
-        return preflop
+    def compute_preflop(self, starting_hands, card_repr):
+        cardlut = create_card_lut(self.low_card_rank, self.high_card_rank)
+        preflop_lut =  compute_preflop_lossless_abstraction(starting_hands, card_repr, cardlut)
+        return preflop_lut
 
 
     def compute_river(self, river, n_river_clusters: int):
@@ -132,7 +142,7 @@ class CardInfoLutProcessor():
         self.centroids['river'] = centroids
         log.info(f"Finished computation of river clusters - took {time.time() - start} seconds.")
 
-        card_info_lut = self.create_card_lookup(clusters, river)
+        card_info_lut = self.create_card_lookup(clusters, river, self.card_repr, self.low_card_rank, self.high_card_rank)
         log.info(f"Finished computation of river LUT - took {time.time() - start} seconds.")
         return card_info_lut, centroids
 
@@ -163,7 +173,7 @@ class CardInfoLutProcessor():
         
         del turn_ehs # Try to free memory
 
-        card_info_lut = self.create_card_lookup(clusters, turn)
+        card_info_lut = self.create_card_lookup(clusters, turn, self.card_repr, self.low_card_rank, self.high_card_rank)
         log.info(f"Finished computation of turn LUT - took {time.time() - start} seconds.")
 
         return card_info_lut, centroids
@@ -192,7 +202,7 @@ class CardInfoLutProcessor():
         )
         log.info(f"Finished computation of flop clusters - took {time.time() - start} seconds.")
 
-        card_info_lut = self.create_card_lookup(clusters, flop)
+        card_info_lut = self.create_card_lookup(clusters, flop, self.card_repr, self.low_card_rank, self.high_card_rank)
         log.info(f"Finished computation of flop LUT - took {time.time() - start} seconds.")
         
         return card_info_lut, centroids
@@ -405,7 +415,7 @@ class CardInfoLutProcessor():
         return centroids, y_km
 
     @staticmethod
-    def create_card_lookup(clusters: np.ndarray, card_combos: np.ndarray) -> Dict:
+    def create_card_lookup(clusters: np.ndarray, card_combos: np.ndarray, card_repr: str, low_card_rank, high_card_rank) -> Dict:
         """
         Create lookup table.
 
@@ -421,15 +431,19 @@ class CardInfoLutProcessor():
         lossy_lookup : Dict
             Lookup table for finding cluster ids.
         """
-        # cardlut = create_card_lut(10, 14) # MEOW hardcoded
         log.info("Creating lookup table.")
         lossy_lookup = {}
-        for i, (starthand,valids) in enumerate(tqdm(card_combos)):
-            for valid in valids:
-                # key = [cardlut[s] for s in starthand] + [cardlut[s] for s in valid]
-                # key = ''.join(key)
-                # lossy_lookup[key] = int(clusters[i])
-                lossy_lookup[tuple(starthand+valid)] = clusters[i]
+        if card_repr == 'string':
+            cardlut = create_card_lut(low_card_rank, high_card_rank) 
+            for i, (starthand,valids) in enumerate(tqdm(card_combos)):
+                for valid in valids:
+                    key = [cardlut[s] for s in starthand] + [cardlut[s] for s in valid]
+                    key = ''.join(key)
+                    lossy_lookup[key] = int(clusters[i])
+        else:
+            for i, (starthand,valids) in enumerate(tqdm(card_combos)):
+                for valid in valids:
+                    lossy_lookup[tuple(starthand+valid)] = clusters[i]
         return lossy_lookup
 
 

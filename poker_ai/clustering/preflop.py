@@ -48,7 +48,7 @@ def make_starting_hand_lossless(starting_hand) -> int:
         return 14 if suited else 24
 
 
-def compute_preflop_lossless_abstraction(starting_hands) -> Dict[Tuple[Card, Card], int]:
+def compute_preflop_lossless_abstraction(starting_hands, card_repr, cardlut) -> Dict[Tuple[Card, Card], int]:
     """Compute the preflop abstraction dictionary.
 
     Only works for the short deck presently.
@@ -64,6 +64,7 @@ def compute_preflop_lossless_abstraction(starting_hands) -> Dict[Tuple[Card, Car
     #     )
     # Getting combos and indexing with lossless abstraction
     preflop_lossless: Dict[Tuple[Card, Card], int] = {}
+    
     for starting_hand in starting_hands:
         starting_hand = sorted(
             list(starting_hand),
@@ -75,8 +76,18 @@ def compute_preflop_lossless_abstraction(starting_hands) -> Dict[Tuple[Card, Car
         preflop_lossless[tuple([int(c) for c in starting_hand])] = make_starting_hand_lossless(
             starting_hand
         )
+
         # Old method storing Card obj
         # preflop_lossless[tuple(starting_hand)] = make_starting_hand_lossless(
         #     starting_hand
         # )
-    return preflop_lossless
+    if card_repr =='string':
+        new_dict = {}
+        for key in preflop_lossless:
+            newkey = [cardlut[s] for s in key]
+            newkey = ''.join(newkey)
+            new_dict[newkey] = preflop_lossless[key]
+
+        return new_dict
+    else:
+        return preflop_lossless

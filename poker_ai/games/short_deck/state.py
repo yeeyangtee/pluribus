@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import joblib
 import pickle
+import time
 
 from poker_ai import utils
 from poker_ai.poker.card import Card
@@ -17,6 +18,7 @@ from poker_ai.poker.engine import PokerEngine
 from poker_ai.games.short_deck.player import ShortDeckPokerPlayer
 from poker_ai.poker.pot import Pot
 from poker_ai.poker.table import PokerTable
+from poker_ai.poker.deck import get_all_suits
 
 logger = logging.getLogger("poker_ai.games.short_deck.state")
 InfoSetLookupTable = Dict[str, Dict[Tuple[int, ...], str]]
@@ -88,13 +90,14 @@ class ShortDeckPokerState:
                 f"were provided."
             )
         self._pickle_dir = pickle_dir
+        LOW_CARD_RANK = 10 # MEOW hardcoded
         if load_card_lut:
             self.card_info_lut = self.load_card_lut(lut_path, self._pickle_dir)
         else:
             self.card_info_lut = {}
         # Get a reference of the pot from the first player.
         self._table = PokerTable(
-            players=players, pot=players[0].pot, include_ranks=list(range(10,15))
+            players=players, pot=players[0].pot, include_ranks=list(range(LOW_CARD_RANK,15))
         )
         # Get a reference of the initial number of chips for the payout.
         self._initial_n_chips = players[0].n_chips
@@ -138,6 +141,8 @@ class ShortDeckPokerState:
         for player in self.players:
             player.is_turn = False
         self.current_player.is_turn = True
+
+        self.cardlut = self.create_card_lut(LOW_CARD_RANK)
 
     def __repr__(self):
         """Return a helpful description of object in strings and debugger."""
@@ -237,6 +242,18 @@ class ShortDeckPokerState:
         return new_state
 
     @staticmethod
+    def create_card_lut(low_card_rank):
+        suits = sorted(list(get_all_suits()))
+        ranks = sorted(list(range(low_card_rank, 14 + 1))) # hardcode high card 
+        cards = [int(Card(rank, suit)) for suit in suits for rank in ranks]
+        cards.sort(reverse=True)
+
+        lut = {}
+        for i, c in enumerate(cards):
+            lut[c] = f'{i:02d}'
+        return lut 
+
+    @staticmethod
     def load_card_lut(
         lut_path: str = ".",
         pickle_dir: bool = False
@@ -266,9 +283,11 @@ class ShortDeckPokerState:
             betting_stages = ["pre_flop", "flop", "turn", "river"]
             for street in betting_stages:
                 card_info_lut_path = lut_path + f'/card_info_lut_{street}.pkl'
+                print(f'Loading LUT file from {card_info_lut_path}...')
+                start_time = time.time()
                 with open(card_info_lut_path,'rb') as f: 
                     card_info_lut[street]= pickle.load(f)
-
+                print(f'Loaded LUT file from {card_info_lut_path} in {time.time() - start_time:.2f} seconds.')
         elif lut_path:
             logger.info(f"Loading card from single file at path: {lut_path}")
             card_info_lut = joblib.load(lut_path + '/card_info_lut.joblib')
@@ -390,7 +409,9 @@ class ShortDeckPokerState:
         if self._pickle_dir:
             lookup_cards = tuple([card.eval_card for card in cards])
         else:
-            lookup_cards = tuple([int(card) for card in cards])
+            # lookup_cards = tuple([int(card) for card in cards])
+            # MEOW hacky patch here to handle string representation of card info. Also, not sure where this obj is defined in the main agent loop
+            lookup_cards = ''.join([self.cardlut[int(c)] for c in cards])
         try:
             cards_cluster = self.card_info_lut[self._betting_stage][lookup_cards]
         except KeyError:
