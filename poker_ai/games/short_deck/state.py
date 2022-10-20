@@ -16,6 +16,7 @@ from poker_ai import utils
 from poker_ai.poker.card import Card
 from poker_ai.poker.engine import PokerEngine
 from poker_ai.games.short_deck.player import ShortDeckPokerPlayer
+from poker_ai.poker.actions import Action
 from poker_ai.poker.pot import Pot
 from poker_ai.poker.table import PokerTable
 from poker_ai.poker.deck import get_all_suits
@@ -147,6 +148,18 @@ class ShortDeckPokerState:
     def __repr__(self):
         """Return a helpful description of object in strings and debugger."""
         return f"<ShortDeckPokerState player_i={self.player_i} betting_stage={self._betting_stage}>"
+    
+    @staticmethod
+    def perform_raise(state, n_chips:int, amount:str)->Action:
+        '''Helper function to abstract the code for performing 
+        a raise, returns the action to keep in history.'''
+        biggest_bet = max(p.n_bet_chips for p in state.players)
+        n_chips_to_call = biggest_bet - state.current_player.n_bet_chips
+        raise_n_chips = n_chips + n_chips_to_call
+        logger.debug(f"Betting {raise_n_chips} chips")
+        action = state.current_player.raise_to_varied(n_chips=raise_n_chips, amount=amount)
+        state._n_actions += 1
+        return action
 
     def apply_action(self, action_str: Optional[str]) -> ShortDeckPokerState:
         """Create a new state after applying an action.
@@ -188,16 +201,36 @@ class ShortDeckPokerState:
         elif action_str == "fold":
             action = new_state.current_player.fold()
         # MEOW important part to configure more than just limit betting.
-        elif action_str == "raise":
-            bet_n_chips = new_state.big_blind
-            if new_state._betting_stage in {"turn", "river"}:
-                bet_n_chips *= 2
-            biggest_bet = max(p.n_bet_chips for p in new_state.players)
-            n_chips_to_call = biggest_bet - new_state.current_player.n_bet_chips
-            raise_n_chips = bet_n_chips + n_chips_to_call
-            logger.debug(f"betting {raise_n_chips} n chips")
-            action = new_state.current_player.raise_to(n_chips=raise_n_chips)
-            new_state._n_raises += 1
+        # actions += ["raise_quarter", "raise_half", "raise_3quarter", "raise_one","raise_all_in"]
+
+        elif action_str == "raise_quarter":
+            bet_n_chips = int(new_state._table.pot.total * 0.25)
+            action = self.perform_raise(new_state, bet_n_chips, action_str.split('_')[1])
+        elif action_str == "raise_half":
+            bet_n_chips = int(new_state._table.pot.total * 0.5)
+            action = self.perform_raise(new_state, bet_n_chips, action_str.split('_')[1])
+        elif action_str == "raise_3quarter":
+            bet_n_chips = int(new_state._table.pot.total * 0.75)
+            action = self.perform_raise(new_state, bet_n_chips, action_str.split('_')[1])
+        elif action_str == "raise_one":
+            bet_n_chips = int(new_state._table.pot.total)
+            action = self.perform_raise(new_state, bet_n_chips, action_str.split('_')[1])
+        elif action_str == "raise_allin":
+            bet_n_chips = new_state.current_player.n_chips
+            action = self.perform_raise(new_state, bet_n_chips, action_str.split('_')[1])
+        
+        
+        # MEOW backup of old raise apply action made on 20oct2022
+        # elif action_str == "raise":
+        #     bet_n_chips = new_state.big_blind
+        #     if new_state._betting_stage in {"turn", "river"}:
+        #         bet_n_chips *= 2
+        #     biggest_bet = max(p.n_bet_chips for p in new_state.players)
+        #     n_chips_to_call = biggest_bet - new_state.current_player.n_bet_chips
+        #     raise_n_chips = bet_n_chips + n_chips_to_call
+        #     logger.debug(f"betting {raise_n_chips} n chips")
+        #     action = new_state.current_player.raise_to(n_chips=raise_n_chips)
+        #     new_state._n_raises += 1
         else:
             raise ValueError(
                 f"Expected action to be derived from class Action, but found "
@@ -243,6 +276,8 @@ class ShortDeckPokerState:
 
     @staticmethod
     def create_card_lut(low_card_rank):
+        '''LUT that transforms from tuple of int(evalcard) to string of integers
+        sort order is VERY important, as needs to sync up with the stored card info lut.'''
         suits = sorted(list(get_all_suits()))
         ranks = sorted(list(range(low_card_rank, 14 + 1))) # hardcode high card 
         cards = [int(Card(rank, suit)) for suit in suits for rank in ranks]
@@ -460,17 +495,44 @@ class ShortDeckPokerState:
         """Returns a reference to player that makes a move for this state."""
         return self._table.players[self.player_i]
 
+    # MEOW modified this to code in the staged raises
     @property
     def legal_actions(self) -> List[Optional[str]]:
         """Return the actions that are legal for this game state."""
         actions: List[Optional[str]] = []
         if self.current_player.is_active:
             actions += ["fold", "call"]
-            if self._n_raises < 3:
-                # In limit hold'em we can only bet/raise if there have been
-                # less than three raises in this round of betting, or if there
-                # are two players playing.
-                actions += ["raise"]
-        else:
+            if self._betting_stage in {"pre_flop",'flop'}:
+                if self._n_raises == 0:
+                    actions += ["raise_quarter", "raise_half", "raise_3quarter", "raise_one","raise_allin"]
+                elif self._n_raises < 3:
+                    actions += ["raise_half", "raise_one","raise_allin"]
+                else:
+                    actions +=['lol']
+            elif self._betting_stage in {'turn','river'}:
+                if self._n_raises == 0:
+                    actions += ["raise_half", "raise_one", "raise_allin"]
+                elif self._n_raises < 3:
+                    actions += ["raise_one", "raise_allin"]
+                else:
+                    actions +=['lol']
+                    # pass
+        else:   
             actions += [None]
         return actions
+
+    # MEOW backup of legal_actions property made on 20oct2022
+    # @property
+    # def legal_actions(self) -> List[Optional[str]]:
+    #     """Return the actions that are legal for this game state."""
+    #     actions: List[Optional[str]] = []
+    #     if self.current_player.is_active:
+    #         actions += ["fold", "call"]
+    #         if self._n_raises < 3:
+    #             # In limit hold'em we can only bet/raise if there have been
+    #             # less than three raises in this round of betting, or if there
+    #             # are two players playing.
+    #             actions += ["raise"]
+    #     else:
+    #         actions += [None]
+    #     return actions

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 __all__ = ["Call", "Fold", "Raise", "AbstractedRaise"]
 
-DUMMY_AMOUNTS = [10, 100, 500, 1000, 5000, 10000]
+FIXED_AMOUNTS = ['quarter','half', '3quarter','one','allin']
 
 
 class Action:
@@ -30,8 +30,8 @@ class Raise(Action):
 
 
 class AbstractedRaise(Action):
-    def __init__(self, allowed_amounts):
-        self.amounts = allowed_amounts
+    def __init__(self):
+        self.amounts = FIXED_AMOUNTS
 
     def __call__(self, amount):
         if amount not in self.amounts:
@@ -42,7 +42,7 @@ class AbstractedRaise(Action):
         self.amount = amount
 
     def __repr__(self):
-        return f"raise {self.amount}"
+        return f"raise_{self.amount}"
 
     @property
     def allowed_amounts(self):

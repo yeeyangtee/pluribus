@@ -5,7 +5,7 @@ import uuid
 from abc import ABC, abstractmethod
 from typing import List, TYPE_CHECKING
 
-from poker_ai.poker.actions import Call, Fold, Raise
+from poker_ai.poker.actions import Call, Fold, Raise, AbstractedRaise
 from poker_ai.poker.state import PokerGameState
 
 if TYPE_CHECKING:
@@ -74,6 +74,13 @@ class Player:
         n_chips = self.add_to_pot(n_chips)
         raise_action = Raise()
         raise_action(n_chips)
+        return raise_action
+    
+    def raise_to_varied(self, n_chips: int, amount: str):
+        """Raise your bet to a certain n_chips."""
+        n_chips = self.add_to_pot(n_chips)
+        raise_action = AbstractedRaise()
+        raise_action(amount)
         return raise_action
 
     def _try_to_make_full_bet(self, n_chips: int):

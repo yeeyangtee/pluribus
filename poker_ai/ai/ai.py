@@ -18,7 +18,6 @@ log = logging.getLogger("sync.ai")
 def calculate_strategy(this_info_sets_regret: Dict[str, float]) -> Dict[str, float]:
     """
     Calculate the strategy based on the current information sets regret.
-
     ...
 
     Parameters
