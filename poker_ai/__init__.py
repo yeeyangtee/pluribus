@@ -6,8 +6,11 @@ from rich.logging import RichHandler
 
 FORMAT = "%(message)s"
 logging.basicConfig(
-    format=FORMAT, datefmt="[%X] ", handlers=[RichHandler()], level=logging.INFO,
-)
+    format=FORMAT, datefmt="[%X] ", handlers=[RichHandler()], level=logging.INFO)
+
+# logging.basicConfig(
+#     format=FORMAT, datefmt="[%X] ", level=logging.DEBUG, filename='tmp.log'
+# )
 
 from . import ai
 from . import cli

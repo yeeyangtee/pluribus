@@ -5,6 +5,8 @@ import os
 from pathlib import Path
 from typing import Dict, List, Union
 
+import time
+
 import joblib
 import numpy as np
 
@@ -43,7 +45,7 @@ def calculate_strategy(this_info_sets_regret: Dict[str, float]) -> Dict[str, flo
         strategy: Dict[str, float] = {action: default_probability for action in actions}
     return strategy
 
-
+# MEOW this takes very long time
 def update_strategy(
     agent: Agent,
     state: ShortDeckPokerState,

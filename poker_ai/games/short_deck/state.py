@@ -203,21 +203,21 @@ class ShortDeckPokerState:
         # MEOW important part to configure more than just limit betting.
         # actions += ["raise_quarter", "raise_half", "raise_3quarter", "raise_one","raise_all_in"]
 
-        elif action_str == "raise_quarter":
-            bet_n_chips = int(new_state._table.pot.total * 0.25)
-            action = self.perform_raise(new_state, bet_n_chips, action_str.split('_')[1])
+        # elif action_str == "raise_quarter":
+        #     bet_n_chips = int(new_state._table.pot.total * 0.25)
+        #     action = self.perform_raise(new_state, bet_n_chips, action_str.split('_')[1])
         elif action_str == "raise_half":
             bet_n_chips = int(new_state._table.pot.total * 0.5)
             action = self.perform_raise(new_state, bet_n_chips, action_str.split('_')[1])
-        elif action_str == "raise_3quarter":
-            bet_n_chips = int(new_state._table.pot.total * 0.75)
-            action = self.perform_raise(new_state, bet_n_chips, action_str.split('_')[1])
+        # elif action_str == "raise_3quarter":
+        #     bet_n_chips = int(new_state._table.pot.total * 0.75)
+        #     action = self.perform_raise(new_state, bet_n_chips, action_str.split('_')[1])
         elif action_str == "raise_one":
             bet_n_chips = int(new_state._table.pot.total)
             action = self.perform_raise(new_state, bet_n_chips, action_str.split('_')[1])
-        elif action_str == "raise_allin":
-            bet_n_chips = new_state.current_player.n_chips
-            action = self.perform_raise(new_state, bet_n_chips, action_str.split('_')[1])
+        # elif action_str == "raise_allin":
+        #     bet_n_chips = new_state.current_player.n_chips
+        #     action = self.perform_raise(new_state, bet_n_chips, action_str.split('_')[1])
         
         
         # MEOW backup of old raise apply action made on 20oct2022
@@ -502,20 +502,22 @@ class ShortDeckPokerState:
         actions: List[Optional[str]] = []
         if self.current_player.is_active:
             actions += ["fold", "call"]
-            if self._betting_stage in {"pre_flop",'flop'}:
-                if self._n_raises == 0:
-                    actions += ["raise_quarter", "raise_half", "raise_3quarter", "raise_one","raise_allin"]
-                elif self._n_raises < 3:
-                    actions += ["raise_half", "raise_one","raise_allin"]
-                else:
-                    actions +=['lol']
-            elif self._betting_stage in {'turn','river'}:
-                if self._n_raises == 0:
-                    actions += ["raise_half", "raise_one", "raise_allin"]
-                elif self._n_raises < 3:
-                    actions += ["raise_one", "raise_allin"]
-                else:
-                    actions +=['lol']
+            if self._n_raises < 3:
+                actions += ["raise_half", "raise_one"]
+            # if self._betting_stage in {"pre_flop",'flop'}:
+            #     if self._n_raises == 0:
+            #         actions += ["raise_quarter", "raise_half", "raise_3quarter", "raise_one","raise_allin"]
+            #     elif self._n_raises < 3:
+            #         actions += ["raise_half", "raise_one","raise_allin"]
+            #     else:
+            #         actions +=['lol']
+            # elif self._betting_stage in {'turn','river'}:
+            #     if self._n_raises == 0:
+            #         actions += ["raise_half", "raise_one", "raise_allin"]
+            #     elif self._n_raises < 3:
+            #         actions += ["raise_one", "raise_allin"]
+            #     else:
+            #         actions +=['lol']
                     # pass
         else:   
             actions += [None]
