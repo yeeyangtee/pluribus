@@ -6,6 +6,11 @@ _*
 *.joblib
 ### WEB STUFF
 
+# YY
+trained_agents
+cardnfos
+archived
+
 # Logs
 logs
 *.log

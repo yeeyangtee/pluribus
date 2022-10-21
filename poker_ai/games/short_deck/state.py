@@ -502,8 +502,10 @@ class ShortDeckPokerState:
         actions: List[Optional[str]] = []
         if self.current_player.is_active:
             actions += ["fold", "call"]
-            if self._n_raises < 3:
+            if self._n_raises == 0 :
                 actions += ["raise_half", "raise_one"]
+            elif self._n_raises < 3 :
+                actions += ["raise_one"]
             # if self._betting_stage in {"pre_flop",'flop'}:
             #     if self._n_raises == 0:
             #         actions += ["raise_quarter", "raise_half", "raise_3quarter", "raise_one","raise_allin"]

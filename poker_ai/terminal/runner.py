@@ -1,6 +1,7 @@
 import random
 import time
 from typing import Dict
+from pathlib import Path
 
 import click
 import joblib
@@ -18,15 +19,17 @@ from poker_ai.utils.algos import rotate_list
 
 @click.command()
 @click.option('--lut_path', required=True, type=str)
-@click.option('--pickle_dir', required=False, default=False, type=bool)
+@click.option('--pickle_dir', required=False, default=True, type=bool)
 @click.option('--agent', required=False, default="offline", type=str)
-@click.option('--strategy_path', required=False, default="", type=str)
+@click.option('--strategy_path', required=True, default="", type=str)
+@click.option('--n_players', required=False, default=4, type=int)
 @click.option('--debug_quick_start/--no_debug_quick_start', default=False)
 def run_terminal_app(
     lut_path: str,
     pickle_dir: bool,
     agent: str = "offline",
     strategy_path: str = "",
+    n_players: int = 4,
     debug_quick_start: bool = False
 ):
     """Start up terminal app to play against your poker AI.
@@ -41,7 +44,7 @@ def run_terminal_app(
     python -m poker_ai.terminal.runner                                       \
         --lut_path ./research/blueprint_algo                               \
         --agent offline                                                      \
-        --pickle_dir ./research/blueprint_algo                               \
+        --pickle_dir True                                                   \
         --strategy_path ./agent.joblib                                       \
         --no_debug_quick_start
     ```
@@ -49,6 +52,7 @@ def run_terminal_app(
     term = Terminal()
     log = AsciiLogger(term)
     n_players: int = 3
+    assert Path(strategy_path).is_file(), f"Strategy path {strategy_path} does not exist."
     if debug_quick_start:
         state: ShortDeckPokerState = new_game(n_players, {}, load_card_lut=False)
     else:

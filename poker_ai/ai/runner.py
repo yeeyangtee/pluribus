@@ -160,7 +160,7 @@ def resume(server_config_path: str):
         "elect to not recusrively visit it and it's child nodes."
     ),
 )
-@click.option("--n_players", default=6, help="The number of players in the game.")
+@click.option("--n_players", default=4, help="The number of players in the game.")
 @click.option(
     "--dump_iteration",
     default=20,
@@ -187,7 +187,7 @@ def resume(server_config_path: str):
 )
 @click.option(
     "--pickle_dir",
-    default=False,
+    default=True,
     help=(
         "Whether or not the lut files are pickle files. This lookup "
         "method is deprecated."
