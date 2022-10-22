@@ -230,6 +230,9 @@ class ShortDeckPokerState:
         elif action_str == "raise_half":
             bet_n_chips = int(new_state._table.pot.total * 0.5)
             action = self.perform_raise(new_state, bet_n_chips, action_str.split('_')[1])
+        elif action_str == "raise_3quarter":
+            bet_n_chips = int(new_state._table.pot.total * 0.75)
+            action = self.perform_raise(new_state, bet_n_chips, action_str.split('_')[1])
         elif action_str == "raise_one":
             bet_n_chips = int(new_state._table.pot.total)
             action = self.perform_raise(new_state, bet_n_chips, action_str.split('_')[1])
@@ -545,7 +548,7 @@ class ShortDeckPokerState:
 
             if self._betting_stage in {"pre_flop",'flop'}:
                 if self._n_raises == 0:
-                    actions += ["raise_quarter", "raise_half", "raise_one","raise_allin"]
+                    actions += ["raise_quarter", "raise_half", "raise_3quarter","raise_one","raise_allin"]
                 elif self._n_raises < 3:
                     actions += ["raise_one","raise_allin"]
             elif self._betting_stage in {'turn','river'}:

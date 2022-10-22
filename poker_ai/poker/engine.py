@@ -250,10 +250,12 @@ class PokerEngine:
         active_complete_bets = []
         highest_bet = 0
         for player in self.table.players:
-            # With just this, it can be all except 1 is all in, then someone with 0 bet is active
-            # then return no need to bet anymore.
+            # With just this, it can be all except 1 is all in, 
+            # then having just 1 player with no bet is enough to return False
             if player.is_active and not player.is_all_in:
                 active_complete_bets.append(player.n_bet_chips)
+            # This adds a check that the active bets (those who are not allin)
+            # are higher than the allin bets.
             elif player.is_all_in:
                 highest_bet = max(highest_bet, player.n_bet_chips)
         all_bets_equal = all(

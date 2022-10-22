@@ -1,1 +1,1 @@
-poker_ai train start --lut_path ./lut_20_int_stringmode --nickname _tmp --pickle_dir True --sync_serialise
+poker_ai train start --lut_path ./cardinfos/20card_string --nickname tmp --pickle_dir True --sync_serialise

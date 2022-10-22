@@ -10,6 +10,7 @@ _*
 trained_agents
 cardnfos
 archived
+tmp*
 
 # Logs
 logs
