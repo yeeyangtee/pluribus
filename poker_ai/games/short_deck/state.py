@@ -99,6 +99,7 @@ class ShortDeckPokerState:
         players: List[ShortDeckPokerPlayer],
         small_blind: int = 50,
         big_blind: int = 100,
+        low_card_rank: int = 2,
         lut_path: str = ".",
         pickle_dir: bool = False,
         load_card_lut: bool = True,
@@ -111,7 +112,7 @@ class ShortDeckPokerState:
                 f"were provided."
             )
         self._pickle_dir = pickle_dir
-        self.low_card_rank = 10 # MEOW hardcoded
+        self.low_card_rank = low_card_rank 
         if load_card_lut:
             self.card_info_lut = self.load_card_lut(lut_path, self._pickle_dir)
         else:

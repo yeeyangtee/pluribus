@@ -16,13 +16,14 @@ from poker_ai.terminal.render import print_footer, print_header, print_log, prin
 from poker_ai.terminal.results import UserResults
 from poker_ai.utils.algos import rotate_list
 
-
+# NOTE: hardcoded defaults for demo mode only.
 @click.command()
-@click.option('--lut_path', required=True, type=str)
+@click.option('--lut_path', required=False, default='/ebs_volume_shared/card_info', type=str)
 @click.option('--pickle_dir', required=False, default=True, type=bool)
 @click.option('--agent', required=False, default="offline", type=str)
-@click.option('--strategy_path', required=True, default="", type=str)
-@click.option('--n_players', required=False, default=3, type=int)
+@click.option('--strategy_path', required=False, default="/ebs_volume_shared/trained_agents/deliver_v1/agent.joblib", type=str)
+@click.option('--n_players', required=True, type=int)
+@click.option('--low_card_rank', required=True, type=int)
 @click.option('--initial_chips', required=False, default=10000, type=int)
 @click.option('--debug_quick_start/--no_debug_quick_start', default=False)
 def run_terminal_app(
@@ -31,6 +32,7 @@ def run_terminal_app(
     agent: str = "offline",
     strategy_path: str = "",
     n_players: int = 3,
+    low_card_rank: int = 10,
     initial_chips: int = 10000,
     debug_quick_start: bool = False
 ):
@@ -58,7 +60,8 @@ def run_terminal_app(
         state: ShortDeckPokerState = new_game(n_players, {}, load_card_lut=False)
     else:
         state: ShortDeckPokerState = create_new_game(
-            n_players, 
+            n_players=n_players,
+            low_card_rank=low_card_rank, 
             initial_chips=initial_chips, 
             lut_path=lut_path, 
             pickle_dir=pickle_dir,)
@@ -170,38 +173,34 @@ def run_terminal_app(
                         valid_players = [p for p in state_players if p.n_chips > 0]
 
                         if len(valid_players) < 2: # If one player left, create new game instead.
-                            state = create_new_game(n_players, 
-                            card_info_lut = state.card_info_lut, 
-                            initial_chips=initial_chips,)
+                            state = create_new_game(
+                                n_players=n_players,
+                                low_card_rank=low_card_rank, 
+                                card_info_lut = state.card_info_lut, 
+                                initial_chips=initial_chips,)
                             n_table_rotations = 0
                             log.info(term.green(f"Game Over, Winner was {names[valid_players[0].name]}. Starting new game with fresh chips."))
 
                         else: # Create new state with previous state of players 
                             log.info(term.green("Dealing New Hand"))
                             state: ShortDeckPokerState = new_game(
-                                n_players, state.card_info_lut, 
-                                player_state = valid_players,
-                            )
+                                n_players=n_players,
+                                low_card_rank=low_card_rank, 
+                                card_info_lut=state.card_info_lut, 
+                                player_state = valid_players,)
                             n_table_rotations -= 1
                             if n_table_rotations < 0:
                                 n_table_rotations = n_players - 1
-
-                        # When we make a new hand, finally check if this hand can still be played
-                        # if check_endgame(state):
-                        #     log.clear()
-                        #     log.info(("Game has ended! Starting new game with fresh chips."))
-                        #     state: ShortDeckPokerState = new_game(
-                        #         n_players, state.card_info_lut, 
-                        #     )
-                        #     n_table_rotations = 0
 
                     elif action == "new game":
                         user_results.add_result(strategy_path, agent, state, og_name_to_name)
                         log.clear()
                         log.info(term.green("Starting new game with fresh chips."))
-                        state: ShortDeckPokerState = new_game(
-                            n_players, state.card_info_lut, 
-                        )
+                        state = create_new_game(
+                            n_players=n_players,
+                            low_card_rank=low_card_rank, 
+                            card_info_lut = state.card_info_lut, 
+                            initial_chips=initial_chips,)
                         n_table_rotations = 0
                     else:
                         log.info(term.green(f"{current_player_name} chose {action}"))
@@ -231,6 +230,7 @@ def run_terminal_app(
                 state: ShortDeckPokerState = state.apply_action(action)
 
 def check_endgame(state):
+    # Deprecated
     # helper to look through player chips and see if game has ended
     valid_players = 0
     for player in state.players:
@@ -242,11 +242,12 @@ def check_endgame(state):
         return False
 
 
-def create_new_game(n_players, initial_chips, card_info_lut=None, lut_path=None, pickle_dir=True):
-    # Create a totally new game, helper function to assign initial chips without modifying the state file too much.
+def create_new_game(n_players, low_card_rank, initial_chips=10000, card_info_lut=None, lut_path=None, pickle_dir=True):
+    # Helper function to create new game 
     if lut_path: 
         state: ShortDeckPokerState = new_game(
-            n_players, 
+            n_players=n_players,
+            low_card_rank=low_card_rank, 
             initial_chips=initial_chips,
             lut_path=lut_path, 
             pickle_dir=pickle_dir,
@@ -254,7 +255,8 @@ def create_new_game(n_players, initial_chips, card_info_lut=None, lut_path=None,
     else:
         assert card_info_lut is not None
         state: ShortDeckPokerState = new_game(
-            n_players, 
+            n_players=n_players,
+            low_card_rank=low_card_rank, 
             card_info_lut=card_info_lut, 
             initial_chips=initial_chips,
         )
