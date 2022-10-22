@@ -54,3 +54,8 @@ class Dealer:
     def deal_river(self, table: PokerTable):
         """Deal the river public cards to the `table`."""
         return self.deal_community_cards(table, 1)
+
+    def deal_all(self, table: PokerTable):
+        """Deal all public cards to the `table`."""
+        num_cards_to_deal = 5 - len(table.community_cards)
+        return self.deal_community_cards(table, num_cards_to_deal)

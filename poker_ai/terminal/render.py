@@ -68,22 +68,24 @@ def print_footer(
 
 def print_table(
     term: Terminal,
-    players: Dict[str, AsciiPlayer],
+    players: List[AsciiPlayer],
     public_cards: AsciiCardCollection,
     n_table_rotations: int,
     n_spaces_between_cards: int = 4,
     n_chips_in_pot: int = 0,
 ):
-    left_player = players["left"]
-    middle_player = players["middle"]
-    right_player = players["right"]
+    # MEOW Hardcoded here left middle right! 
+    # left_player = players["left"]
+    # middle_player = players["middle"]
+    # right_player = players["right"]
     for line in public_cards.lines:
         print(term.center(line))
     print(term.center(f"chips in pot: {n_chips_in_pot}"))
     print("\n\n")
     spacing = " " * n_spaces_between_cards
-    for l, m, r in zip(left_player.lines, middle_player.lines, right_player.lines):
-        print(term.center(f"{l}{spacing}{m}{spacing}{r}"))
+    player_lines = tuple([player.lines for player in players])
+    for line in zip(*player_lines):
+        print(term.center(spacing.join(line)))
 
 
 def print_log(term: Terminal, log: AsciiLogger):
