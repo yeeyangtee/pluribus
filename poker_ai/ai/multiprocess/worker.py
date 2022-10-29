@@ -27,6 +27,7 @@ class Worker(mp.Process):
         n_players: int,
         prune_threshold: int,
         c: int,
+        low_card_rank: int,
         lcfr_threshold: int,
         discount_interval: int,
         update_threshold: int,
@@ -43,6 +44,7 @@ class Worker(mp.Process):
         self._prune_threshold = prune_threshold
         self._agent = agent
         self._c = c
+        self._low_card_rank = low_card_rank
         self._lcfr_threshold = lcfr_threshold
         self._discount_interval = discount_interval
         self._update_threshold = update_threshold
@@ -142,5 +144,5 @@ class Worker(mp.Process):
     def _setup_new_game(self):
         """Setup up new poker game."""
         self._state: state.ShortDeckPokerState = state.new_game(
-            self._n_players, self._info_set_lut,
+            self._n_players, self._info_set_lut, low_card_rank=self._low_card_rank
         )

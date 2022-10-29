@@ -22,6 +22,7 @@ class Server:
     def __init__(
         self,
         strategy_interval: int,
+        low_card_rank: int,
         n_iterations: int,
         lcfr_threshold: int,
         discount_interval: int,
@@ -43,6 +44,7 @@ class Server:
     ):
         """Set up the optimisation server."""
         self._strategy_interval = strategy_interval
+        self._low_card_rank = low_card_rank
         self._n_iterations = n_iterations
         self._lcfr_threshold = lcfr_threshold
         self._discount_interval = discount_interval
@@ -222,6 +224,7 @@ class Server:
                 n_players=self._n_players,
                 prune_threshold=self._prune_threshold,
                 c=self._c,
+                low_card_rank=self._low_card_rank,
                 lcfr_threshold=self._lcfr_threshold,
                 discount_interval=self._discount_interval,
                 update_threshold=self._update_threshold,

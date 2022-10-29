@@ -34,7 +34,7 @@ def new_game(
 ) -> ShortDeckPokerState:
     """
     Create a new game of short deck poker.
-
+    Used in `ai/worker.py` and terminal app.`
     ...
 
     Parameters

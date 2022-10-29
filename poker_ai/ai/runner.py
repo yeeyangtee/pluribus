@@ -13,6 +13,7 @@ Usage: poker_ai train start [OPTIONS]
 Options:
   --strategy_interval INTEGER     Update the current strategy whenever the
                                   iteration % strategy_interval == 0.
+  --low_card_rank INTEGER         Initialization state for deck state.
   --n_iterations INTEGER          The total number of iterations we should
                                   train the model for.
   --lcfr_threshold INTEGER        A threshold for linear CFR which means don't
@@ -123,6 +124,11 @@ def resume(server_config_path: str):
     help="Update the current strategy whenever the iteration % strategy_interval == 0.",
 )
 @click.option(
+    "--low_card_rank",
+    default=2,
+    help="Low card rank for initialization game state.",
+)
+@click.option(
     "--n_iterations",
     default=1500,
     help="The total number of iterations we should train the model for.",
@@ -219,6 +225,7 @@ def resume(server_config_path: str):
 @click.option("--nickname", default="", help="The nickname of the study.")
 def start(
     strategy_interval: int,
+    low_card_rank: int,
     n_iterations: int,
     lcfr_threshold: int,
     discount_interval: int,
@@ -253,6 +260,7 @@ def start(
             lut_path=lut_path,
             pickle_dir=pickle_dir,
             strategy_interval=strategy_interval,
+            low_card_rank=low_card_rank,
             n_iterations=n_iterations,
             lcfr_threshold=lcfr_threshold,
             discount_interval=discount_interval,
@@ -270,6 +278,7 @@ def start(
         # Create the server that controls/coordinates the workers.
         server = Server(
             strategy_interval=strategy_interval,
+            low_card_rank=low_card_rank,
             n_iterations=n_iterations,
             lcfr_threshold=lcfr_threshold,
             discount_interval=discount_interval,
