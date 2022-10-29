@@ -551,7 +551,7 @@ class ShortDeckPokerState:
                 if self._n_raises == 0:
                     actions += ["raise_quarter", "raise_half", "raise_3quarter","raise_one","raise_allin"]
                 elif self._n_raises < 3:
-                    actions += ["raise_half","raise_one","raise_allin"]
+                    actions += ["raise_one","raise_allin"]
             elif self._betting_stage in {'turn','river'}:
                 if self._n_raises == 0:
                     actions += ["raise_half", "raise_one", "raise_allin"]
