@@ -371,29 +371,47 @@ class ManualState(ShortDeckPokerState):
                 continue
             else: # Passed all checks
                 break
-        print(f'Received {card}')
+        print(f'\nReceived Input {card}')
         return card
 
     
     def get_user_input(self, stage)->List[Card]:
+        '''Helper function that asks for user input depending on the stage of the game
+        Returns a list of cards
+        It should also check that the inputted cards are NOT already in the table'''
+        cards = []
         if stage == "pre_flop":
-            hole1 = self.get_sanitised_input("Enter your first hole card: \n")
-            hole2 = self.get_sanitised_input("Enter your second hole card: \n")
-            cards = [Card(self._rank_mapping[hole1[0]],self._suit_mapping[hole1[1]]), 
-                            Card(self._rank_mapping[hole2[0]],self._suit_mapping[hole2[1]]), ]
+            while len(cards) < 2:
+                inp = self.get_sanitised_input(f'Enter hole card {len(cards)+1}')
+                card = Card(self._rank_mapping[inp[0]],self._suit_mapping[inp[1]])
+                if card not in self._poker_engine.table.dealer.deck._dealt_cards:
+                    cards.append(card)
+                else:
+                    print(f'Card {card} already dealt, please try again')
         elif stage == "flop":
-            flop1 = self.get_sanitised_input("Enter your first flop card: \n")
-            flop2 = self.get_sanitised_input("Enter your second flop card: \n")
-            flop3 = self.get_sanitised_input("Enter your third flop card: \n")
-            cards = [Card(self._rank_mapping[flop1[0]],self._suit_mapping[flop1[1]]),
-                            Card(self._rank_mapping[flop2[0]],self._suit_mapping[flop2[1]]),
-                            Card(self._rank_mapping[flop3[0]],self._suit_mapping[flop3[1]]), ]
+           while len(cards) < 3:
+                inp = self.get_sanitised_input(f'Enter FLOP card {len(cards)+1}')
+                card = Card(self._rank_mapping[inp[0]],self._suit_mapping[inp[1]])
+                if card not in self._poker_engine.table.dealer.deck._dealt_cards:
+                    cards.append(card)
+                else:
+                    print(f'Card {card} already dealt, please try again')
         elif stage == "turn":
-            turn = self.get_sanitised_input("Enter your turn card: \n")
-            cards = [Card(self._rank_mapping[turn[0]],self._suit_mapping[turn[1]])]
+            while len(cards) < 1:
+                inp = self.get_sanitised_input(f'Enter TURN card {len(cards)+1}')
+                card = Card(self._rank_mapping[inp[0]],self._suit_mapping[inp[1]])
+                if card not in self._poker_engine.table.dealer.deck._dealt_cards:
+                    cards.append(card)
+                else:
+                    print(f'Card {card} already dealt, please try again')
         elif stage == "river":
-            river = self.get_sanitised_input("Enter your river card: \n")
-            cards = [Card(self._rank_mapping[river[0]],self._suit_mapping[river[1]])]
+            while len(cards) < 1:
+                inp = self.get_sanitised_input(f'Enter RIVER card {len(cards)+1}')
+                card = Card(self._rank_mapping[inp[0]],self._suit_mapping[inp[1]])
+                if card not in self._poker_engine.table.dealer.deck._dealt_cards:
+                    cards.append(card)
+                else:
+                    print(f'Card {card} already dealt, please try again')
         else:
             raise ValueError(f"Stage {stage} is not valid.")
         
@@ -401,6 +419,39 @@ class ManualState(ShortDeckPokerState):
         for card in cards:
             self._poker_engine.table.dealer.deck.remove(card)
         return cards
+    # def get_user_input(self, stage)->List[Card]:
+    #     '''Helper function that asks for user input depending on the stage of the game
+    #     Returns a list of cards
+    #     It should also check that the inputted cards are NOT already in the table'''
+    #     cards = []
+    #     if stage == "pre_flop":
+    #         while len(cards) < 2:
+    #             inp = self.get_sanitised_input(f'Enter hole card {len(cards)+1}')
+    #             card = Card(self._rank_mapping[inp[0]],self._suit_mapping[inp[1]])
+    #             if card not in self._poker_engine.table.dealer.deck._dealt_cards:
+    #                 cards.append(card)
+    #             else:
+    #                 print(f'Card {card} already dealt, please try again')
+    #     elif stage == "flop":
+    #         flop1 = self.get_sanitised_input("Enter your first flop card: \n")
+    #         flop2 = self.get_sanitised_input("Enter your second flop card: \n")
+    #         flop3 = self.get_sanitised_input("Enter your third flop card: \n")
+    #         cards = [Card(self._rank_mapping[flop1[0]],self._suit_mapping[flop1[1]]),
+    #                         Card(self._rank_mapping[flop2[0]],self._suit_mapping[flop2[1]]),
+    #                         Card(self._rank_mapping[flop3[0]],self._suit_mapping[flop3[1]]), ]
+    #     elif stage == "turn":
+    #         turn = self.get_sanitised_input("Enter your turn card: \n")
+    #         cards = [Card(self._rank_mapping[turn[0]],self._suit_mapping[turn[1]])]
+    #     elif stage == "river":
+    #         river = self.get_sanitised_input("Enter your river card: \n")
+    #         cards = [Card(self._rank_mapping[river[0]],self._suit_mapping[river[1]])]
+    #     else:
+    #         raise ValueError(f"Stage {stage} is not valid.")
+        
+    #     # Remove the user-inputted cards from deck manually.
+    #     for card in cards:
+    #         self._poker_engine.table.dealer.deck.remove(card)
+    #     return cards
 
     def _increment_stage(self):
         """Once betting has finished, increment the stage of the poker game."""
