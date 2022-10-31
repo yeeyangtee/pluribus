@@ -314,22 +314,22 @@ class ManualState(ShortDeckPokerState):
                 elif new_state._betting_stage == "show_down":
                     # IF showdown, we need to first ask for the remaining community cards, Then each of the in-play player cards.
                     if len(new_state._table.community_cards) == 4:
-                        for card in self.get_user_input('river'):
-                            self._table.add_community_card(card)
+                        for card in new_state.get_user_input('river'):
+                            new_state._table.add_community_card(card)
 
                     elif len(new_state._table.community_cards) == 3:
-                        for card in self.get_user_input('turn'):
-                            self._table.add_community_card(card)
-                        for card in self.get_user_input('river'):
-                            self._table.add_community_card(card)
+                        for card in new_state.get_user_input('turn'):
+                            new_state._table.add_community_card(card)
+                        for card in new_state.get_user_input('river'):
+                            new_state._table.add_community_card(card)
 
                     elif len(new_state._table.community_cards) == 0:
-                        for card in self.get_user_input('flop'):
-                            self._table.add_community_card(card)
-                        for card in self.get_user_input('turn'):
-                            self._table.add_community_card(card)
-                        for card in self.get_user_input('river'):
-                            self._table.add_community_card(card)
+                        for card in new_state.get_user_input('flop'):
+                            new_state._table.add_community_card(card)
+                        for card in new_state.get_user_input('turn'):
+                            new_state._table.add_community_card(card)
+                        for card in new_state.get_user_input('river'):
+                            new_state._table.add_community_card(card)
                     
                     # Now looop through all players
                     for player in new_state._table.players:
@@ -338,7 +338,7 @@ class ManualState(ShortDeckPokerState):
                             player.cards = []
                             playerid = player.name.split('_')[1]
                             print(f'Please enter holecards for HUMAN {playerid}')
-                            for card in self.get_user_input('pre_flop'):
+                            for card in new_state.get_user_input('pre_flop'):
                                 player.add_private_card(card)
 
                     # Finally, compute winnings
