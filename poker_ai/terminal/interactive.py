@@ -74,7 +74,7 @@ def run_interactive_app(
         offline_strategy = {}
 
     # One off input to grab user input for state
-    get_user_input(state)
+    # get_user_input(state)
     # Start main loop
     with term.cbreak(), term.hidden_cursor():
         # Loop until Human have no chips or win all chips, keep starting new HANDS
@@ -192,7 +192,17 @@ def run_interactive_app(
                         log.clear()
                         log.info(term.green("Starting new game with fresh chips."))
                                                 
-                        
+                        # Upon select new game, we give option to change number of players
+                        # num_players = input("How many players? ")
+                        # if not isinstance(num_players, int):
+                        #     num_players = n_players
+                        # elif num_players >6 or num_players < 2:
+                        #     num_players = n_players
+                        # n_players = num_players
+                        # names = {}
+                        # for i in range(n_players-1):
+                        #     names[f'player_{i}'] = f"HUMAN {i}"
+                        # names[f'player_{n_players-1}'] = "BOT"
                         state = create_new_game(
                             n_players=n_players,
                             low_card_rank=low_card_rank, 
@@ -224,6 +234,8 @@ def run_interactive_app(
                     action = np.random.choice(actions, p=probabilties)
                     time.sleep(0.8)
                 log.info(f"{current_player_name} chose {action}")
+                # Do a manual printout in case apply action moves to next stage requiring user input..
+                print(f"{current_player_name} chose {action}")
                 state: ManualState = state.apply_action(action)
 
 def check_endgame(state):
