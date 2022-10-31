@@ -2,7 +2,7 @@ import click
 
 from poker_ai.ai.runner import train
 from poker_ai.clustering.runner import cluster
-from poker_ai.terminal.runner import run_terminal_app
+from poker_ai.terminal.runner import play
 
 
 @click.group()
@@ -20,4 +20,4 @@ def cli():
 
 cli.add_command(train, name="train")
 cli.add_command(cluster, name="cluster")
-cli.add_command(run_terminal_app, name="play")
+cli.add_command(play, name="play")
