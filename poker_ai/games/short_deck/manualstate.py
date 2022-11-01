@@ -384,7 +384,7 @@ class ManualState(ShortDeckPokerState):
             while len(cards) < 2:
                 inp = self.get_sanitised_input(f'Enter hole card {len(cards)+1}')
                 card = Card(self._rank_mapping[inp[0]],self._suit_mapping[inp[1]])
-                if card not in self._poker_engine.table.dealer.deck._dealt_cards:
+                if card not in self._poker_engine.table.dealer.deck._dealt_cards and card not in cards:
                     cards.append(card)
                 else:
                     print(f'Card {card} already dealt, please try again')
@@ -392,7 +392,7 @@ class ManualState(ShortDeckPokerState):
            while len(cards) < 3:
                 inp = self.get_sanitised_input(f'Enter FLOP card {len(cards)+1}')
                 card = Card(self._rank_mapping[inp[0]],self._suit_mapping[inp[1]])
-                if card not in self._poker_engine.table.dealer.deck._dealt_cards:
+                if card not in self._poker_engine.table.dealer.deck._dealt_cards and card not in cards:
                     cards.append(card)
                 else:
                     print(f'Card {card} already dealt, please try again')
