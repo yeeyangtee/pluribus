@@ -70,7 +70,6 @@ def print_table(
     term: Terminal,
     players: List[AsciiPlayer],
     public_cards: AsciiCardCollection,
-    n_table_rotations: int,
     n_spaces_between_cards: int = 4,
     n_chips_in_pot: int = 0,
 ):

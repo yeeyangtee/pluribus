@@ -91,6 +91,7 @@ def new_game(
 class ManualState(ShortDeckPokerState):
     """The state of a Manual Input poker game at some given point in time.
     We only need to reimplement the initialization, apply action functions.
+    This should only be used for interactive app mode.
 
     The class is immutable and new state can be instanciated from once an
     action is applied via the `ShortDeckPokerState.new_state` method.
@@ -150,7 +151,7 @@ class ManualState(ShortDeckPokerState):
 
         # Here Loop through each player, if they are the bot player then we need to get the input from the terminal app, else assign aces for placeholder.
         for player in self._table.players:
-            if player.name != f'player_{n_players-1}':
+            if player.name != f'player_0':
                 player.add_private_card(Card(rank=14, suit='spades'))
                 player.add_private_card(Card(rank=14, suit='hearts'))
             else:
@@ -232,9 +233,8 @@ class ManualState(ShortDeckPokerState):
             logger.debug("calling")
         elif action_str == "fold":
             action = new_state.current_player.fold()
-        # MEOW important part to configure more than just limit betting.
-        # actions += ["raise_quarter", "raise_half", "raise_3quarter", "raise_one","raise_all_in"]
 
+        # MEOW important section to configure more than just limit betting.
         elif action_str == "raise_quarter":
             bet_n_chips = int(new_state._table.pot.total * 0.25)
             action = self.perform_raise(new_state, bet_n_chips, action_str.split('_')[1])
@@ -268,17 +268,20 @@ class ManualState(ShortDeckPokerState):
         while True:
             new_state._move_to_next_player()
             
-            # 1) If finished all betting, first check if all have folded but one (terminal). Else move to next betting stage. 
+            # 1.1) If everyone finished betting, first check if all have folded but one (terminal). 
             finished_betting = not new_state._poker_engine.more_betting_needed
             if finished_betting and new_state._poker_engine.n_active_players == 1:
                 new_state._betting_stage = "terminal"
-                # Do deal flop here so that can compute winnings only.
+                # Do deal flop here so that can compute winnings only. 
+                # Also some lines to remove the placeholder holecards to avoid collision, in case a human wins by all fold.
                 if not new_state._table.community_cards:
+                    new_state._poker_engine.table.dealer.deck.remove(Card(rank=14, suit='spades'))
+                    new_state._poker_engine.table.dealer.deck.remove(Card(rank=14, suit='hearts'))
                     new_state._poker_engine.table.dealer.deal_flop(new_state._table)
                 new_state._poker_engine.compute_winners()
 
+            #1.2) Everyone has finished betting, and there are 2 or more players left.
             elif finished_betting and new_state.all_players_have_actioned:
-                # logger.info("Finished betting round, going to next stage.")
                 new_state._increment_stage()
                 new_state._reset_betting_round_state()
                 new_state._first_move_of_current_round = True
@@ -333,7 +336,8 @@ class ManualState(ShortDeckPokerState):
                     
                     # Now looop through all players
                     for player in new_state._table.players:
-                        if player.is_active and player.name != f'player_{len(new_state._table.players)-1}':
+                        # If player has not folded and player is not the BOT/USER
+                        if player.is_active and player.name != f'player_0':
                             # Clear the default cards
                             player.cards = []
                             playerid = player.name.split('_')[1]
@@ -419,39 +423,6 @@ class ManualState(ShortDeckPokerState):
         for card in cards:
             self._poker_engine.table.dealer.deck.remove(card)
         return cards
-    # def get_user_input(self, stage)->List[Card]:
-    #     '''Helper function that asks for user input depending on the stage of the game
-    #     Returns a list of cards
-    #     It should also check that the inputted cards are NOT already in the table'''
-    #     cards = []
-    #     if stage == "pre_flop":
-    #         while len(cards) < 2:
-    #             inp = self.get_sanitised_input(f'Enter hole card {len(cards)+1}')
-    #             card = Card(self._rank_mapping[inp[0]],self._suit_mapping[inp[1]])
-    #             if card not in self._poker_engine.table.dealer.deck._dealt_cards:
-    #                 cards.append(card)
-    #             else:
-    #                 print(f'Card {card} already dealt, please try again')
-    #     elif stage == "flop":
-    #         flop1 = self.get_sanitised_input("Enter your first flop card: \n")
-    #         flop2 = self.get_sanitised_input("Enter your second flop card: \n")
-    #         flop3 = self.get_sanitised_input("Enter your third flop card: \n")
-    #         cards = [Card(self._rank_mapping[flop1[0]],self._suit_mapping[flop1[1]]),
-    #                         Card(self._rank_mapping[flop2[0]],self._suit_mapping[flop2[1]]),
-    #                         Card(self._rank_mapping[flop3[0]],self._suit_mapping[flop3[1]]), ]
-    #     elif stage == "turn":
-    #         turn = self.get_sanitised_input("Enter your turn card: \n")
-    #         cards = [Card(self._rank_mapping[turn[0]],self._suit_mapping[turn[1]])]
-    #     elif stage == "river":
-    #         river = self.get_sanitised_input("Enter your river card: \n")
-    #         cards = [Card(self._rank_mapping[river[0]],self._suit_mapping[river[1]])]
-    #     else:
-    #         raise ValueError(f"Stage {stage} is not valid.")
-        
-    #     # Remove the user-inputted cards from deck manually.
-    #     for card in cards:
-    #         self._poker_engine.table.dealer.deck.remove(card)
-    #     return cards
 
     def _increment_stage(self):
         """Once betting has finished, increment the stage of the poker game."""

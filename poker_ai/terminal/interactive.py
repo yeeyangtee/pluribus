@@ -14,7 +14,7 @@ from poker_ai.terminal.ascii_objects.player import AsciiPlayer
 from poker_ai.terminal.ascii_objects.logger import AsciiLogger
 from poker_ai.terminal.render import print_footer, print_header, print_log, print_table
 from poker_ai.terminal.results import UserResults
-from poker_ai.utils.algos import rotate_list
+from poker_ai.utils.algos import rotate_list_once
 
 # NOTE: hardcoded defaults for demo mode only.
 def run_interactive_app(
@@ -47,23 +47,10 @@ def run_interactive_app(
     log = AsciiLogger(term)
     assert Path(strategy_path).is_file(), f"Strategy path {strategy_path} does not exist."
     
-    # Load strategy, LUT and stuff, one time
-    state: ManualState = create_new_game(
-        n_players=n_players,
-        low_card_rank=low_card_rank, 
-        initial_chips=initial_chips, 
-        lut_path=lut_path, 
-        pickle_dir=pickle_dir,)
-
-    # MEOW fix n_table_rotation as we now work with a persistent player list, each time just push the same list back by one
-    n_table_rotations: int = n_players - 1
-    selected_action_i: int = 0
-    # We hard code these for now, but we could make this more flexible in the future.
-    names = {}
-    for i in range(n_players-1):
-        names[f'player_{i}'] = f"HUMAN {i}"
-    names[f'player_{n_players-1}'] = "BOT"
-
+    # Load strategy, LUT and stuff, one time operations
+    # Load agent first since that takes time.
+    print('Loading Agent...')
+    start_time = time.time()
     if agent in {"offline", "online"}:
         offline_strategy_dict = joblib.load(strategy_path)
         offline_strategy = offline_strategy_dict['strategy']
@@ -72,17 +59,36 @@ def run_interactive_app(
         del offline_strategy_dict["regret"]
     else:
         offline_strategy = {}
+    print(f'Successfully loaded Agent in {time.time() - start_time:.2f} seconds.')
 
-    # One off input to grab user input for state
-    # get_user_input(state)
+    # Load the state which needs to load the very long LUT file
+    state: ManualState = create_new_game(
+        n_players=n_players,
+        low_card_rank=low_card_rank, 
+        initial_chips=initial_chips, 
+        lut_path=lut_path, 
+        pickle_dir=pickle_dir,)
+
+    # This is to track the position of cursor/selection in the terminal app
+    selected_action_i: int = 0
+    num_players = None
+    # Define player.name, USER/BOT is always player 0
+    names = {}
+    names[f'player_0'] = "BOT"
+    for i in range(n_players-1):
+        names[f'player_{i+1}'] = f"HUMAN {i+1}"
+
     # Start main loop
     with term.cbreak(), term.hidden_cursor():
         # Loop until Human have no chips or win all chips, keep starting new HANDS
         while True:
+            if num_players is not None and num_players != n_players:
+                n_players = num_players
+                print(num_players,n_players,names)
             # Construct ascii objects to be rendered later.
             ascii_players: List[AsciiPlayer] = []
             # MIAO Why rotate?
-            state_players = rotate_list(state.players, n_table_rotations)
+            state_players = rotate_list_once(state.players)
             # state_players = state.players
             og_name_to_position = {}
             og_name_to_name = {}
@@ -116,7 +122,7 @@ def run_interactive_app(
 
             # Check if hand is over
             if state.is_terminal:
-                legal_actions = ["quit", "new hand", "new game"]
+                legal_actions = ["new hand", "new game", "quit"]
                 human_should_interact = True
             else:
                 og_current_name = state.current_player.name
@@ -127,7 +133,6 @@ def run_interactive_app(
                 else:
                     legal_actions = []
 
-            # render()
             # Render game.
             print(term.home + term.white + term.clear)
             print_header(term, state, og_name_to_name)
@@ -135,11 +140,11 @@ def run_interactive_app(
                 term,
                 ascii_players,
                 public_cards,
-                n_table_rotations,
                 n_chips_in_pot=state._table.pot.total,
             )
             print_footer(term, selected_action_i, legal_actions)
             print_log(term, log)
+
             # Make action of some kind.
             if human_should_interact:
                 # Incase the legal_actions went from length 3 to 2 and we had
@@ -161,8 +166,7 @@ def run_interactive_app(
                         log.info(term.pink("Quitting..."))
                         break
                     elif action == "new hand":
-                        get_card_input(term)
-                        
+                       
                         log.clear()
                         # Compute valid players based on chip count, use state_players to retain rotation info.
                         valid_players = [p for p in state_players if p.n_chips > 0]
@@ -173,7 +177,6 @@ def run_interactive_app(
                                 low_card_rank=low_card_rank, 
                                 card_info_lut = state.card_info_lut, 
                                 initial_chips=initial_chips,)
-                            # n_table_rotations = 0
                             log.info(term.green(f"Game Over, Winner was {names[valid_players[0].name]}. Starting new game with fresh chips."))
 
                         else: # Create new state with previous state of players 
@@ -184,31 +187,31 @@ def run_interactive_app(
                                 low_card_rank=low_card_rank, 
                                 card_info_lut=state.card_info_lut, 
                                 player_state = valid_players,)
-                            # n_table_rotations -= 1
-                            # if n_table_rotations < 0:
-                            #     n_table_rotations = n_players-1
 
                     elif action == "new game":
                         log.clear()
                         log.info(term.green("Starting new game with fresh chips."))
                                                 
                         # Upon select new game, we give option to change number of players
-                        # num_players = input("How many players? ")
-                        # if not isinstance(num_players, int):
-                        #     num_players = n_players
-                        # elif num_players >6 or num_players < 2:
-                        #     num_players = n_players
-                        # n_players = num_players
-                        # names = {}
-                        # for i in range(n_players-1):
-                        #     names[f'player_{i}'] = f"HUMAN {i}"
-                        # names[f'player_{n_players-1}'] = "BOT"
+                        try: num_players = int(input("How many players? "))
+                        except: num_players = n_players
+                        if num_players >6 or num_players < 2:
+                            print(f"Invalid number of players, defaulting previous: {n_players}")
+                            num_players = n_players
+                        try: initial_chips = int(input("How many chips? "))
+                        except: initial_chips = 10000
+                        if initial_chips < 1000 or initial_chips > 10000000:
+                            print('Invalid number of chips, using default 10K')
+                            initial_chips = 10000
+                        names = {}
+                        names[f'player_0'] = "BOT"
+                        for i in range(num_players-1):
+                            names[f'player_{i+1}'] = f"HUMAN {i+1}"
                         state = create_new_game(
-                            n_players=n_players,
+                            n_players=num_players,
                             low_card_rank=low_card_rank, 
                             card_info_lut = state.card_info_lut, 
                             initial_chips=initial_chips,)
-                        n_table_rotations = 0
                     else:
                         log.info(term.green(f"{current_player_name} chose {action}"))
                         state: ManualState = state.apply_action(action)
@@ -251,13 +254,9 @@ def check_endgame(state):
         return False
 
 # Helper functions
-
-def render(term):
-    '''Helper function to render all the shits'''
-    pass
-
 def create_new_game(n_players, low_card_rank, initial_chips=10000, card_info_lut=None, lut_path=None, pickle_dir=True):
-    # Helper function to create new game 
+    '''Key function to creating a new game.
+    Will generate a state: Manual State and also the player names.'''
     if lut_path: 
         state: ManualState = new_game(
             n_players=n_players,
@@ -275,6 +274,12 @@ def create_new_game(n_players, low_card_rank, initial_chips=10000, card_info_lut
             initial_chips=initial_chips,
         )
     return state
+
+# Unused
+
+def render(term):
+    '''Helper function to render all the shits'''
+    pass
 
 def get_card_input(term):
     '''Helper function to get user input, which will return a string of length 2 representing a card!'''
@@ -294,8 +299,6 @@ def get_card_input(term):
     print(f'Got Suit of {suit}')
     return rank + suit
     # Then enter a key repr the suit
-
-
 
 def get_user_input(state):
     # Helper function that gets user input, either for hand cards, table cards.

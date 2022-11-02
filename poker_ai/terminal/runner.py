@@ -178,7 +178,6 @@ def run_terminal_app(
                 term,
                 ascii_players,
                 public_cards,
-                n_table_rotations,
                 n_chips_in_pot=state._table.pot.total,
             )
             print_footer(term, selected_action_i, legal_actions)
