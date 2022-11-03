@@ -14,7 +14,7 @@ from poker_ai.terminal.ascii_objects.player import AsciiPlayer
 from poker_ai.terminal.ascii_objects.logger import AsciiLogger
 from poker_ai.terminal.render import print_footer, print_header, print_log, print_table
 from poker_ai.terminal.results import UserResults
-from poker_ai.utils.algos import rotate_list
+from poker_ai.utils.algos import rotate_list, rotate_list_once
 
 from poker_ai.terminal.interactive import run_interactive_app
 
@@ -27,7 +27,7 @@ from poker_ai.terminal.interactive import run_interactive_app
 @click.option('--n_players', required=True, type=int)
 @click.option('--low_card_rank', required=True, type=int)
 @click.option('--initial_chips', required=False, default=10000, type=int)
-@click.option('--play_as_bot', default=False)
+@click.option('--play_as_bot', type=bool, default=False)
 @click.option('--debug_quick_start/--no_debug_quick_start', default=False)
 def play(
     lut_path: str,
@@ -41,7 +41,7 @@ def play(
     play_as_bot: bool = False,
 ):
     # Main function to run the game
-    if play_as_bot:
+    if play_as_bot == True:
         run_interactive_app(
             lut_path=lut_path,
             pickle_dir=pickle_dir,
@@ -94,6 +94,22 @@ def run_terminal_app(
     term = Terminal()
     log = AsciiLogger(term)
     assert Path(strategy_path).is_file(), f"Strategy path {strategy_path} does not exist."
+
+    # Load strategy, LUT and stuff, one time operations
+    # Load agent first since that takes time.
+    print('Loading Agent...')
+    start_time = time.time()
+    if agent in {"offline", "online"}:
+        offline_strategy_dict = joblib.load(strategy_path)
+        offline_strategy = offline_strategy_dict['strategy']
+        # Using the more fine grained preflop strategy would be a good idea
+        del offline_strategy_dict["pre_flop_strategy"]
+        del offline_strategy_dict["regret"]
+    else:
+        offline_strategy = {}
+    print(f'Successfully loaded Agent in {time.time() - start_time:.2f} seconds.')
+
+
     if debug_quick_start:
         state: ShortDeckPokerState = new_game(n_players, {}, load_card_lut=False)
     else:
@@ -103,34 +119,25 @@ def run_terminal_app(
             initial_chips=initial_chips, 
             lut_path=lut_path, 
             pickle_dir=pickle_dir,)
-    n_table_rotations: int = 0
+
     selected_action_i: int = 0
+    num_players= None
     # We hard code these for now, but we could make this more flexible in the future.
     names = {}
+    names[f'player_0'] = "HUMAN"
     for i in range(n_players-1):
-        names[f'player_{i}'] = f"BOT {i}"
-    names[f'player_{n_players-1}'] = "HUMAN"
+        names[f'player_{i+1}'] = f"BOT {i+1}"
 
-    if not debug_quick_start and agent in {"offline", "online"}:
-        offline_strategy_dict = joblib.load(strategy_path)
-        offline_strategy = offline_strategy_dict['strategy']
-        # Using the more fine grained preflop strategy would be a good idea
-        # for a future improvement
-        del offline_strategy_dict["pre_flop_strategy"]
-        del offline_strategy_dict["regret"]
-    else:
-        offline_strategy = {}
     user_results: UserResults = UserResults()
     # Start main loop
     with term.cbreak(), term.hidden_cursor():
-    # Need another loop here to start fresh GAME
-
         # Loop until Human have no chips or win all chips, keep starting new HANDS
         while True:
+            if num_players is not None and num_players != n_players:
+                n_players = num_players
             # Construct ascii objects to be rendered later.
             ascii_players: List[AsciiPlayer] = []
-            # MIAO Why rotate?
-            state_players = rotate_list(state.players[::-1], n_table_rotations)
+            state_players = rotate_list_once(state.players)
             # state_players = state.players
             og_name_to_position = {}
             og_name_to_name = {}
@@ -162,7 +169,7 @@ def run_terminal_app(
 
             # Check if hand is over
             if state.is_terminal:
-                legal_actions = ["quit", "new hand", "new game"]
+                legal_actions = ["new hand", "new game", "quit"]
                 human_should_interact = True
             else:
                 og_current_name = state.current_player.name
@@ -225,20 +232,33 @@ def run_terminal_app(
                                 low_card_rank=low_card_rank, 
                                 card_info_lut=state.card_info_lut, 
                                 player_state = valid_players,)
-                            n_table_rotations -= 1
-                            if n_table_rotations < 0:
-                                n_table_rotations = n_players - 1
 
                     elif action == "new game":
                         user_results.add_result(strategy_path, agent, state, og_name_to_name)
                         log.clear()
                         log.info(term.green("Starting new game with fresh chips."))
+
+                        try: num_players = int(input("How many players?"))
+                        except: num_players = n_players
+                        if num_players >6 or num_players < 2:
+                            print(f"Invalid number of players, defaulting previous: {n_players}")
+                            num_players = n_players
+                        try: initial_chips = int(input("How many chips? "))
+                        except: initial_chips = 10000
+                        if initial_chips < 1000 or initial_chips > 10000000:
+                            print('Invalid number of chips, using default 10K')
+                            initial_chips = 10000
+                        names = {}
+                        names[f'player_0'] = "HUMAN"
+                        for i in range(num_players-1):
+                            names[f'player_{i+1}'] = f"BOT {i+1}"
+
+
                         state = create_new_game(
-                            n_players=n_players,
+                            n_players=num_players,
                             low_card_rank=low_card_rank, 
                             card_info_lut = state.card_info_lut, 
                             initial_chips=initial_chips,)
-                        n_table_rotations = 0
                     else:
                         log.info(term.green(f"{current_player_name} chose {action}"))
                         state: ShortDeckPokerState = state.apply_action(action)

@@ -84,10 +84,8 @@ def run_interactive_app(
         while True:
             if num_players is not None and num_players != n_players:
                 n_players = num_players
-                print(num_players,n_players,names)
             # Construct ascii objects to be rendered later.
             ascii_players: List[AsciiPlayer] = []
-            # MIAO Why rotate?
             state_players = rotate_list_once(state.players)
             # state_players = state.players
             og_name_to_position = {}
