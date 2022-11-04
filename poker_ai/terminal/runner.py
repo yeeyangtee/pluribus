@@ -207,11 +207,11 @@ def run_terminal_app(
                 elif key.name == "KEY_ENTER":
                     action = legal_actions[selected_action_i]
                     if action == "quit":
-                        user_results.add_result(strategy_path, agent, state, og_name_to_name)
+                        # user_results.add_result(strategy_path, agent, state, og_name_to_name)
                         log.info(term.pink("Quitting..."))
                         break
                     elif action == "new hand":
-                        user_results.add_result(strategy_path, agent, state, og_name_to_name)
+                        # user_results.add_result(strategy_path, agent, state, og_name_to_name)
                         log.clear()
                         # Compute valid players based on chip count, use state_players to retain rotation info.
                         valid_players = [p for p in state_players if p.n_chips > 0]
@@ -234,7 +234,7 @@ def run_terminal_app(
                                 player_state = valid_players,)
 
                     elif action == "new game":
-                        user_results.add_result(strategy_path, agent, state, og_name_to_name)
+                        # user_results.add_result(strategy_path, agent, state, og_name_to_name)
                         log.clear()
                         log.info(term.green("Starting new game with fresh chips."))
 
