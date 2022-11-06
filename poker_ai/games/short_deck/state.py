@@ -296,7 +296,7 @@ class ShortDeckPokerState:
                         new_state._poker_engine.table.dealer.deal_all(new_state._table)
                 # 3.3) If everyone has all-ined except ownself, check if need more betting. Else go showdown
                 elif new_state._poker_engine.n_players_with_moves == 1 and finished_betting:
-                    logger.info(f'All players have all-ined except {new_state.current_player.name}, finished bet {finished_betting}')
+                    # logger.info(f'All players have all-ined except {new_state.current_player.name}, finished bet {finished_betting}')
                     new_state._betting_stage = "show_down"
                     if len(new_state._poker_engine.table.community_cards) < 5:
                         new_state._poker_engine.table.dealer.deal_all(new_state._table)

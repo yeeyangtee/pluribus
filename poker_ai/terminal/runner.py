@@ -8,13 +8,16 @@ import joblib
 import numpy as np
 from blessed import Terminal
 
+from poker_ai.ai import ai
+from poker_ai.ai.agent import Agent
+
 from poker_ai.games.short_deck.state import new_game, ShortDeckPokerState
 from poker_ai.terminal.ascii_objects.card_collection import AsciiCardCollection
 from poker_ai.terminal.ascii_objects.player import AsciiPlayer
 from poker_ai.terminal.ascii_objects.logger import AsciiLogger
 from poker_ai.terminal.render import print_footer, print_header, print_log, print_table
 from poker_ai.terminal.results import UserResults
-from poker_ai.utils.algos import rotate_list, rotate_list_once
+from poker_ai.utils.algos import rotate_list_once
 
 from poker_ai.terminal.interactive import run_interactive_app
 
@@ -22,7 +25,7 @@ from poker_ai.terminal.interactive import run_interactive_app
 @click.command()
 @click.option('--lut_path', required=False, default='/ebs_volume_shared/card_info', type=str)
 @click.option('--pickle_dir', required=False, default=True, type=bool)
-@click.option('--agent', required=False, default="offline", type=str)
+@click.option('--agent', required=False, default="online", type=str)
 @click.option('--strategy_path', required=False, default="/ebs_volume_shared/trained_agents/deliver_v1/agent.joblib", type=str)
 @click.option('--n_players', required=True, type=int)
 @click.option('--low_card_rank', required=True, type=int)
@@ -100,11 +103,12 @@ def run_terminal_app(
     print('Loading Agent...')
     start_time = time.time()
     if agent in {"offline", "online"}:
-        offline_strategy_dict = joblib.load(strategy_path)
-        offline_strategy = offline_strategy_dict['strategy']
-        # Using the more fine grained preflop strategy would be a good idea
-        del offline_strategy_dict["pre_flop_strategy"]
-        del offline_strategy_dict["regret"]
+        offline_agent = Agent(agent_path=strategy_path, use_manager=False)
+        # offline_strategy_dict = joblib.load(strategy_path)
+        # offline_strategy = offline_strategy_dict['strategy']
+        # offline_regrets = offline_strategy_dict["regret"]
+        # Delete pre_flop_strategy since it is duplicate of strategy
+        # del offline_strategy_dict["pre_flop_strategy"]
     else:
         offline_strategy = {}
     print(f'Successfully loaded Agent in {time.time() - start_time:.2f} seconds.')
@@ -222,7 +226,6 @@ def run_terminal_app(
                                 low_card_rank=low_card_rank, 
                                 card_info_lut = state.card_info_lut, 
                                 initial_chips=initial_chips,)
-                            n_table_rotations = 0
                             log.info(term.green(f"Game Over, Winner was {names[valid_players[0].name]}. Starting new game with fresh chips."))
 
                         else: # Create new state with previous state of players 
@@ -253,7 +256,6 @@ def run_terminal_app(
                         for i in range(num_players-1):
                             names[f'player_{i+1}'] = f"BOT {i+1}"
 
-
                         state = create_new_game(
                             n_players=num_players,
                             low_card_rank=low_card_rank, 
@@ -262,16 +264,19 @@ def run_terminal_app(
                     else:
                         log.info(term.green(f"{current_player_name} chose {action}"))
                         state: ShortDeckPokerState = state.apply_action(action)
+            # Bot performs actions
             else:
+                # 1) Play randomly
                 if agent == "random":
                     action = random.choice(state.legal_actions)
                     time.sleep(0.8)
-                elif agent == "offline":
+                # 2) Player purely by blueprint strategy
+                elif agent == "offline" or state._betting_stage=='pre_flop':
                     default_strategy = {
                         action: 1 / len(state.legal_actions)
                         for action in state.legal_actions
                     }
-                    this_state_strategy = offline_strategy.get(
+                    this_state_strategy = offline_agent.strategy.get(
                         state.info_set, default_strategy
                     )
                     # Normalizing strategy.
@@ -283,8 +288,48 @@ def run_terminal_app(
                     probabilties = list(this_state_strategy.values())
                     action = np.random.choice(actions, p=probabilties)
                     time.sleep(0.8)
+                # 3) Play by blueprint for pre_flop. Then use CFR for flop onwards
+                elif agent == "online":
+                    i = state.player_i
+                    this_state_strategy = real_time_search(state, offline_agent, i)
+                    # Normalizing strategy.
+                    total = sum(this_state_strategy.values())
+                    this_state_strategy = {
+                        k: v / total for k, v in this_state_strategy.items()
+                    }
+                    actions = list(this_state_strategy.keys())
+                    probabilties = list(this_state_strategy.values())
+                    action = np.random.choice(actions, p=probabilties)
+
+                    time.sleep(0.8)
+
+                # Check if action is fold but state does not require betting, so change action to call
+                biggest_bet = max(p.n_bet_chips for p in state.players)
+                bet_not_required = state.current_player.n_bet_chips == biggest_bet
+                if action == "fold" and bet_not_required:
+                    log.info(f"{current_player_name} selected fold but defaulted to call")
+                    action = "call"
                 log.info(f"{current_player_name} chose {action}")
                 state: ShortDeckPokerState = state.apply_action(action)
+
+
+def real_time_search(state, agent, i):
+    '''Performs real time search for the agent'''
+    print(f'[INFO] Starting Real Time Search for player {i}')
+    use_pruning: bool = np.random.uniform() < 0.95
+    rts_iterations = 5
+    if use_pruning:
+        for _ in range(rts_iterations):
+            ai.cfrp(agent, state, i, t=0, c=-20000, locks=None)
+    else:
+        for _ in range(rts_iterations):
+            ai.cfr(agent, state, i, t=0, locks=None)
+    this_state_regret = agent.regret[state.info_set]
+    this_state_strategy = ai.calculate_strategy(this_state_regret)
+    # ai.update_strategy(agent, state, i, t=0,locks=None)
+    # print('Output from cfr', tmp)
+    return this_state_strategy
+
 
 def check_endgame(state):
     # Deprecated

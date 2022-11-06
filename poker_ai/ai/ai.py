@@ -245,35 +245,23 @@ def cfrp(
         The Player.
     t : int
         The iteration.
+    c: int
+        Pruning threshold for regret. I.e. if regret lower than this value, 
+        don't traverse this branch
     locks : Dict[str, mp.synchronize.Lock]
         The locks for multiprocessing
     """
+    # Get the current player's index for this state
     ph = state.player_i
-
+    # Check whether player folded
     player_not_in_hand = not state.players[i].is_active
+    # 1) Reached terminal node, return payout
     if state.is_terminal or player_not_in_hand:
         return state.payout[i]
-    # NOTE(fedden): The logic in Algorithm 1 in the supplementary material
-    #               instructs the following lines of logic, but state class
-    #               will already skip to the next in-hand player.
-    # elif p_i not in hand:
-    #   cfr()
-    # NOTE(fedden): According to Algorithm 1 in the supplementary material,
-    #               we would add in the following bit of logic. However we
-    #               already have the game logic embedded in the state class,
-    #               and this accounts for the chance samplings. In other words,
-    #               it makes sure that chance actions such as dealing cards
-    #               happen at the appropriate times.
-    # elif h is chance_node:
-    #   sample action from strategy for h
-    #   cfr()
+    # 2) If we are at the current player, traverse and update regrets (strategy)
     elif ph == i:
-        # calculate strategy
         this_info_sets_regret = agent.regret.get(state.info_set, state.initial_regret)
         sigma = calculate_strategy(this_info_sets_regret)
-        # TODO: Does updating sigma here (as opposed to after regret) miss out
-        #       on any updates? If so, is there any benefit to having it up
-        #       here?
         vo = 0.0
         voa: Dict[str, float] = dict()
         # Explored dictionary to keep track of regret updates that can be
@@ -281,6 +269,7 @@ def cfrp(
         explored: Dict[str, bool] = {action: False for action in state.legal_actions}
         # Get the regret for this state.
         this_info_sets_regret = agent.regret.get(state.info_set, state.initial_regret)
+        # Traverse the subgame recursively.
         for action in state.legal_actions:
             if this_info_sets_regret[action] > c:
                 new_state: ShortDeckPokerState = state.apply_action(action)
@@ -308,6 +297,21 @@ def cfrp(
         action: str = np.random.choice(available_actions, p=action_probabilities)
         new_state: ShortDeckPokerState = state.apply_action(action)
         return cfrp(agent, new_state, i, t, c, locks)
+
+    # NOTE(fedden): The logic in Algorithm 1 in the supplementary material
+    #               instructs the following lines of logic, but state class
+    #               will already skip to the next in-hand player.
+    # elif p_i not in hand:
+    #   cfr()
+    # NOTE(fedden): According to Algorithm 1 in the supplementary material,
+    #               we would add in the following bit of logic. However we
+    #               already have the game logic embedded in the state class,
+    #               and this accounts for the chance samplings. In other words,
+    #               it makes sure that chance actions such as dealing cards
+    #               happen at the appropriate times.
+    # elif h is chance_node:
+    #   sample action from strategy for h
+    #   cfr()
 
 
 def serialise(
