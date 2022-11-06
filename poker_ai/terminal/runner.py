@@ -271,7 +271,7 @@ def run_terminal_app(
                     action = random.choice(state.legal_actions)
                     time.sleep(0.8)
                 # 2) Player purely by blueprint strategy
-                elif agent == "offline":# or state._betting_stage=='pre_flop':
+                elif agent == "offline" or state._betting_stage=='pre_flop':
                     default_strategy = {
                         action: 1 / len(state.legal_actions)
                         for action in state.legal_actions
