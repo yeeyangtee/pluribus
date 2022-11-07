@@ -126,6 +126,7 @@ def run_terminal_app(
 
     selected_action_i: int = 0
     num_players= None
+    n_simulations = 5 # How many times to repeat CFR
     # We hard code these for now, but we could make this more flexible in the future.
     names = {}
     names[f'player_0'] = "HUMAN"
@@ -241,6 +242,7 @@ def run_terminal_app(
                         log.clear()
                         log.info(term.green("Starting new game with fresh chips."))
 
+                        # Start user input block for new game
                         try: num_players = int(input("How many players?"))
                         except: num_players = n_players
                         if num_players >6 or num_players < 2:
@@ -251,6 +253,12 @@ def run_terminal_app(
                         if initial_chips < 1000 or initial_chips > 10000000:
                             print('Invalid number of chips, using default 10K')
                             initial_chips = 10000
+                        try: n_simulations = int(input("How many simulations? "))
+                        except: n_simulations = 5
+                        if n_simulations < 1 or n_simulations > 100:
+                            print(f'Invalid number of simulations :{n_simulations} given, using default 5')
+                            n_simulations = 5
+                        # End user input block for new game
                         names = {}
                         names[f'player_0'] = "HUMAN"
                         for i in range(num_players-1):
@@ -291,7 +299,7 @@ def run_terminal_app(
                 # 3) Play by blueprint for pre_flop. Then use CFR for flop onwards
                 elif agent == "online":
                     i = state.player_i
-                    this_state_strategy = real_time_search(state, offline_agent, i)
+                    this_state_strategy = real_time_search(state, offline_agent, i, n_simulations)
                     # Normalizing strategy.
                     total = sum(this_state_strategy.values())
                     this_state_strategy = {
@@ -313,12 +321,12 @@ def run_terminal_app(
                 state: ShortDeckPokerState = state.apply_action(action)
 
 
-def real_time_search(state, agent, i):
+def real_time_search(state, agent, i, n_simulations):
     '''Performs real time search for the agent'''
     print(f'[INFO] Starting Real Time Search for player {i}')
     # use_pruning: bool = np.random.uniform() < 0.95
-    use_pruning = False # Test if pruning is causing issues with RTS
-    rts_iterations = 5
+    use_pruning = False # Don't prune for real time search, takes longer but safer
+    rts_iterations = n_simulations
     if use_pruning:
         for _ in range(rts_iterations):
             ai.cfrp(agent, state, i, t=0, c=-20000, locks=None)
