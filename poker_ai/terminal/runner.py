@@ -316,7 +316,8 @@ def run_terminal_app(
 def real_time_search(state, agent, i):
     '''Performs real time search for the agent'''
     print(f'[INFO] Starting Real Time Search for player {i}')
-    use_pruning: bool = np.random.uniform() < 0.95
+    # use_pruning: bool = np.random.uniform() < 0.95
+    use_pruning = False # Test if pruning is causing issues with RTS
     rts_iterations = 5
     if use_pruning:
         for _ in range(rts_iterations):
@@ -324,7 +325,8 @@ def real_time_search(state, agent, i):
     else:
         for _ in range(rts_iterations):
             ai.cfr(agent, state, i, t=0, locks=None)
-    this_state_regret = agent.regret[state.info_set]
+    default_regret = state.initial_regret
+    this_state_regret = agent.regret.get(state.info_set, default_regret)
     this_state_strategy = ai.calculate_strategy(this_state_regret)
     # ai.update_strategy(agent, state, i, t=0,locks=None)
     # print('Output from cfr', tmp)
