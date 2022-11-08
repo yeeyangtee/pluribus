@@ -255,7 +255,7 @@ def run_terminal_app(
                             initial_chips = 10000
                         try: n_simulations = int(input("How many simulations? "))
                         except: n_simulations = 5
-                        if n_simulations < 1 or n_simulations > 100:
+                        if n_simulations < 1 or n_simulations > 1001:
                             print(f'Invalid number of simulations :{n_simulations} given, using default 5')
                             n_simulations = 5
                         # End user input block for new game
