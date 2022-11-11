@@ -76,15 +76,6 @@ def update_strategy(
     if state.is_terminal or player_not_in_hand or state.betting_round > 0:
         return
 
-    # NOTE(fedden): According to Algorithm 1 in the supplementary material,
-    #               we would add in the following bit of logic. However we
-    #               already have the game logic embedded in the state class,
-    #               and this accounts for the chance samplings. In other words,
-    #               it makes sure that chance actions such as dealing cards
-    #               happen at the appropriate times.
-    # elif h is chance_node:
-    #   sample action from strategy for h
-    #   update_strategy(rs, h + a, i, t)
 
     elif ph == i:
         # calculate regret

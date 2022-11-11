@@ -67,7 +67,6 @@ class PokerEngine:
         logger.debug("Winnings computation complete. Players:")
         for player in self.table.players:
             logger.debug(f"{player}")
-        # TODO(fedden): What if someone runs out of chips here?
 
     def _round_cleanup(self):
         """Any code that must be called at the end of a round."""
