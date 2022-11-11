@@ -143,7 +143,6 @@ def test_train_singleprocess(
         result = runner.invoke(cli, cli_args, catch_exceptions=True)
 
 
-# TODO(fedden): Figure out a way to test the terminal game.
 #  from os import kill, getpid
 #  from multiprocessing import Queue, Process
 #  from time import sleep

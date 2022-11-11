@@ -83,8 +83,6 @@ class Worker(mp.Process):
 
     def _set_seed(self):
         """Lose all reproducability as we need unique streams per worker."""
-        # NOTE(fedden): NumPy in particular has a problem with processes and
-        #               seeds: https://github.com/numpy/numpy/issues/9650
         random_seed: int = int.from_bytes(os.urandom(4), byteorder="little")
         utils.random.seed(random_seed)
 
@@ -100,11 +98,6 @@ class Worker(mp.Process):
 
     def _discount(self, t):
         """Discount previous regrets and strategy."""
-        # TODO(fedden): Is discount_interval actually set/managed in
-        #               minutes here? In Algorithm 1 this should be managed
-        #               in minutes using perhaps the time module, but here
-        #               it appears to be being managed by the iterations
-        #               count.
         discount_factor = (t / self._discount_interval) / (
             (t / self._discount_interval) + 1
         )

@@ -57,7 +57,6 @@ class PokerGameState:
         """"""
         if self.is_terminal:
             utility = [-1.0 for _ in range(self._table.n_players)]
-            # TODO(fedden): How to route the winner index here.
             utility[winner_i] = 1.0
             return utility
         return [0.0 for _ in range(self._table.n_players)]
