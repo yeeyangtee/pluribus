@@ -222,9 +222,7 @@ class ShortDeckPokerState:
             logger.debug("calling")
         elif action_str == "fold":
             action = new_state.current_player.fold()
-        # MEOW important part to configure more than just limit betting.
-        # actions += ["raise_quarter", "raise_half", "raise_3quarter", "raise_one","raise_all_in"]
-
+        # MEOW important section to configure more than just limit betting.
         elif action_str == "raise_quarter":
             bet_n_chips = int(new_state._table.pot.total * 0.25)
             action = self.perform_raise(new_state, bet_n_chips, action_str.split('_')[1])
@@ -286,7 +284,7 @@ class ShortDeckPokerState:
                 # 3.1) If Everyone else has folded, go to terminal without doing anything.
                 if new_state._poker_engine.n_active_players == 1 :
                     new_state._betting_stage = "terminal"
-                    # Do deal flop here so that can compute winnings only.
+                    # Do deal flop here just for compute winnings only.
                     if not new_state._table.community_cards:
                         new_state._poker_engine.table.dealer.deal_flop(new_state._table)
                 # 3.2) If everyone has all-ined include ownself, go straight to showdown

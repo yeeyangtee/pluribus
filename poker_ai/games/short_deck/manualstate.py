@@ -107,8 +107,6 @@ class ManualState(ShortDeckPokerState):
         pickle_dir: bool = False,
         load_card_lut: bool = True,
     ):
-    # TODO here need to figure how to subclass and do the inits from the parent class
-
         """Initialise state."""
         n_players = len(players)
         if n_players <= 1:
@@ -150,15 +148,17 @@ class ManualState(ShortDeckPokerState):
         n_players = len(self._table.players)
 
         # Here Loop through each player, if they are the bot player then we need to get the input from the terminal app, else assign aces for placeholder.
+        holecards = self.get_user_input('pre_flop')
         for player in self._table.players:
             if player.name != f'player_0':
-                player.add_private_card(Card(rank=14, suit='spades'))
-                player.add_private_card(Card(rank=14, suit='hearts'))
-            else:
-                holecards = self.get_user_input('pre_flop')
                 for holecard in holecards:
                     player.add_private_card(holecard)
+                # player.add_private_card(Card(rank=14, suit='hearts'))
+                # player.add_private_card(Card(rank=14, suit='spades'))
 
+            else:
+                for holecard in holecards:
+                    player.add_private_card(holecard)
 
         # Store the actions as they come in here.
         self._history: Dict[str, List[str]] = collections.defaultdict(list)
@@ -193,8 +193,128 @@ class ManualState(ShortDeckPokerState):
 
         self.cardlut = self.create_card_lut(self.low_card_rank)
 
+    def apply_action(self, action_str: Optional[str]) -> ManualState:
+        """Default Apply action Create a new state after applying an action.
 
-    def apply_action(self, action_str: Optional[str]) -> ShortDeckPokerState:
+        Parameters
+        ----------
+        action_str : str or None
+            The description of the action the current player is making. Can be
+            any of {"fold, "call", "raise"}, the latter two only being possible
+            if the agent hasn't folded already.
+
+        Returns
+        -------
+        new_state : ShortDeckPokerState
+            A poker state instance that represents the game in the next
+            timestep, after the action has been applied.
+        """
+        if action_str not in self.legal_actions:
+            raise ValueError(
+                f"Action '{action_str}' not in legal actions: " f"{self.legal_actions}"
+            )
+        # Deep copy the parts of state that are needed that must be immutable
+        # from state to state.
+        lut = self.card_info_lut
+        self.card_info_lut = {}
+        new_state = copy.deepcopy(self)
+        new_state.card_info_lut = self.card_info_lut = lut
+        # An action has been made, so alas we are not in the first move of the
+        # current betting round.
+        new_state._first_move_of_current_round = False
+        if action_str is None:
+            # Assert active player has folded already.
+            assert (
+                not new_state.current_player.is_active
+            ), "Active player cannot do nothing!"
+        elif action_str == "call":
+            action = new_state.current_player.call(players=new_state.players)
+            logger.debug("calling")
+        elif action_str == "fold":
+            action = new_state.current_player.fold()
+        # MEOW important section to configure more than just limit betting.
+        elif action_str == "raise_quarter":
+            bet_n_chips = int(new_state._table.pot.total * 0.25)
+            action = self.perform_raise(new_state, bet_n_chips, action_str.split('_')[1])
+        elif action_str == "raise_half":
+            bet_n_chips = int(new_state._table.pot.total * 0.5)
+            action = self.perform_raise(new_state, bet_n_chips, action_str.split('_')[1])
+        elif action_str == "raise_3quarter":
+            bet_n_chips = int(new_state._table.pot.total * 0.75)
+            action = self.perform_raise(new_state, bet_n_chips, action_str.split('_')[1])
+        elif action_str == "raise_one":
+            bet_n_chips = int(new_state._table.pot.total)
+            action = self.perform_raise(new_state, bet_n_chips, action_str.split('_')[1])
+        elif action_str == "raise_allin":
+            bet_n_chips = new_state.current_player.n_chips
+            action = self.perform_raise(new_state, bet_n_chips, action_str.split('_')[1])
+        
+        else:
+            raise ValueError(
+                f"Expected action to be derived from class Action, but found "
+                f"type {type(action)}."
+            )
+        # Update the new state.
+        skip_actions = ["skip" for _ in range(new_state._skip_counter)]
+        new_state._history[new_state.betting_stage] += skip_actions
+        new_state._history[new_state.betting_stage].append(str(action))
+        new_state._n_actions += 1
+        new_state._skip_counter = 0
+
+        # Player has made move, increment the state.current_player to the next avail one.
+        while True:
+            new_state._move_to_next_player()
+            
+            # 1) If finished all betting, move to next betting stage. 
+            finished_betting = not new_state._poker_engine.more_betting_needed
+            if finished_betting and new_state.all_players_have_actioned:
+                new_state._increment_stage()
+                new_state._reset_betting_round_state()
+                new_state._first_move_of_current_round = True
+            
+            # 2) If this player has folded, skip them.
+            if not new_state.current_player.is_active:
+                new_state._skip_counter += 1
+                assert not new_state.current_player.is_active
+
+            # 3) If this player has not folded, do the following checks, if didnt hit any, we continue to the next action.
+            elif new_state.current_player.is_active:
+                # 3.1) If Everyone else has folded, go to terminal without doing anything.
+                if new_state._poker_engine.n_active_players == 1 :
+                    new_state._betting_stage = "terminal"
+                    # Do deal flop here just for compute winnings only.
+                    if not new_state._table.community_cards:
+                        new_state._poker_engine.table.dealer.deal_flop(new_state._table)
+                # 3.2) If everyone has all-ined include ownself, go straight to showdown
+                elif new_state._poker_engine.n_players_with_moves == 0 :
+                    new_state._betting_stage = "show_down"
+                    if len(new_state._poker_engine.table.community_cards) < 5:
+                        new_state._poker_engine.table.dealer.deal_all(new_state._table)
+                # 3.3) If everyone has all-ined except ownself, check if need more betting. Else go showdown
+                elif new_state._poker_engine.n_players_with_moves == 1 and finished_betting:
+                    # logger.info(f'All players have all-ined except {new_state.current_player.name}, finished bet {finished_betting}')
+                    new_state._betting_stage = "show_down"
+                    if len(new_state._poker_engine.table.community_cards) < 5:
+                        new_state._poker_engine.table.dealer.deal_all(new_state._table)
+                # 3.4) If current player has allin, skip also
+                elif new_state.current_player.is_all_in:
+                    new_state._skip_counter += 1
+                    continue
+
+
+
+                if new_state._betting_stage in {"terminal", "show_down"}:
+                    # Distribute winnings.
+                    new_state._poker_engine.compute_winners()
+
+                break # Those that can hit this, can do one action.
+            
+        for player in new_state.players:
+            player.is_turn = False
+        new_state.current_player.is_turn = True
+        return new_state
+
+    def apply_action_interactive(self, action_str: Optional[str]) -> ShortDeckPokerState:
         """Create a new state after applying an action.
 
         Parameters
@@ -233,7 +353,6 @@ class ManualState(ShortDeckPokerState):
             logger.debug("calling")
         elif action_str == "fold":
             action = new_state.current_player.fold()
-
         # MEOW important section to configure more than just limit betting.
         elif action_str == "raise_quarter":
             bet_n_chips = int(new_state._table.pot.total * 0.25)
@@ -282,7 +401,7 @@ class ManualState(ShortDeckPokerState):
 
             #1.2) Everyone has finished betting, and there are 2 or more players left.
             elif finished_betting and new_state.all_players_have_actioned:
-                new_state._increment_stage()
+                new_state._increment_stage_interactive()
                 new_state._reset_betting_round_state()
                 new_state._first_move_of_current_round = True
             
@@ -304,7 +423,7 @@ class ManualState(ShortDeckPokerState):
                     new_state._betting_stage = "show_down"
                 # 3.3) If everyone has all-ined except ownself, check if need more betting. Else go showdown
                 elif new_state._poker_engine.n_players_with_moves == 1 and finished_betting:
-                    logger.info(f'All players have all-ined except {new_state.current_player.name}, finished bet {finished_betting}')
+                    # logger.info(f'All players have all-ined except {new_state.current_player.name}, finished bet {finished_betting}')
                     new_state._betting_stage = "show_down"
                 # 3.4) If current player has allin, skip also
                 elif new_state.current_player.is_all_in:
@@ -334,7 +453,7 @@ class ManualState(ShortDeckPokerState):
                         for card in new_state.get_user_input('river'):
                             new_state._table.add_community_card(card)
                     
-                    # Now looop through all players
+                    # Now loop through all remaining players to get cards
                     for player in new_state._table.players:
                         # If player has not folded and player is not the BOT/USER
                         if player.is_active and player.name != f'player_0':
@@ -425,6 +544,30 @@ class ManualState(ShortDeckPokerState):
         return cards
 
     def _increment_stage(self):
+        """Default increment stage for CFR
+        Once betting has finished, increment the stage of the poker game."""
+        # Progress the stage of the game.
+        if self._betting_stage == "pre_flop":
+            # Progress from private cards to the flop.
+            self._betting_stage = "flop"
+            self._poker_engine.table.dealer.deal_flop(self._table)
+        elif self._betting_stage == "flop":
+            # Progress from flop to turn.
+            self._betting_stage = "turn"
+            self._poker_engine.table.dealer.deal_turn(self._table)
+        elif self._betting_stage == "turn":
+            # Progress from turn to river.
+            self._betting_stage = "river"
+            self._poker_engine.table.dealer.deal_river(self._table)
+        elif self._betting_stage == "river":
+            # Progress to the showdown.
+            self._betting_stage = "show_down"
+        elif self._betting_stage in {"show_down", "terminal"}:
+            pass
+        else:
+            raise ValueError(f"Unknown betting_stage: {self._betting_stage}")
+
+    def _increment_stage_interactive(self):
         """Once betting has finished, increment the stage of the poker game."""
         # Progress the stage of the game.
         if self._betting_stage == "pre_flop":

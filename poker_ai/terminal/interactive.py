@@ -3,12 +3,17 @@ import time
 from typing import Dict, List
 from pathlib import Path
 
+import click
 import joblib
 import numpy as np
 from blessed import Terminal
 
-# from poker_ai.games.short_deck.state import new_game, ManualState
+from poker_ai.ai import ai
+from poker_ai.ai.agent import Agent
+
 from poker_ai.games.short_deck.manualstate import ManualState, new_game
+from poker_ai.games.short_deck.state import ShortDeckPokerState
+
 from poker_ai.terminal.ascii_objects.card_collection import AsciiCardCollection
 from poker_ai.terminal.ascii_objects.player import AsciiPlayer
 from poker_ai.terminal.ascii_objects.logger import AsciiLogger
@@ -52,11 +57,12 @@ def run_interactive_app(
     print('Loading Agent...')
     start_time = time.time()
     if agent in {"offline", "online"}:
-        offline_strategy_dict = joblib.load(strategy_path)
-        offline_strategy = offline_strategy_dict['strategy']
-        # Using the more fine grained preflop strategy would be a good idea
-        del offline_strategy_dict["pre_flop_strategy"]
-        del offline_strategy_dict["regret"]
+        offline_agent = Agent(agent_path=strategy_path, use_manager=False)
+        # offline_strategy_dict = joblib.load(strategy_path)
+        # offline_strategy = offline_strategy_dict['strategy']
+        # offline_regrets = offline_strategy_dict["regret"]
+        # Delete pre_flop_strategy since it is duplicate of strategy
+        # del offline_strategy_dict["pre_flop_strategy"]
     else:
         offline_strategy = {}
     print(f'Successfully loaded Agent in {time.time() - start_time:.2f} seconds.')
@@ -72,7 +78,8 @@ def run_interactive_app(
     # This is to track the position of cursor/selection in the terminal app
     selected_action_i: int = 0
     num_players = None
-    # Define player.name, USER/BOT is always player 0
+    n_simulations = 5 # How many times to repeat CFR
+    # Define player names, USER/BOT is always player 0
     names = {}
     names[f'player_0'] = "BOT"
     for i in range(n_players-1):
@@ -142,7 +149,6 @@ def run_interactive_app(
             )
             print_footer(term, selected_action_i, legal_actions)
             print_log(term, log)
-
             # Make action of some kind.
             if human_should_interact:
                 # Incase the legal_actions went from length 3 to 2 and we had
@@ -164,7 +170,6 @@ def run_interactive_app(
                         log.info(term.pink("Quitting..."))
                         break
                     elif action == "new hand":
-                       
                         log.clear()
                         # Compute valid players based on chip count, use state_players to retain rotation info.
                         valid_players = [p for p in state_players if p.n_chips > 0]
@@ -179,7 +184,6 @@ def run_interactive_app(
 
                         else: # Create new state with previous state of players 
                             log.info(term.green("Dealing New Hand"))
-
                             state: ManualState = new_game(
                                 n_players=n_players,
                                 low_card_rank=low_card_rank, 
@@ -190,8 +194,8 @@ def run_interactive_app(
                         log.clear()
                         log.info(term.green("Starting new game with fresh chips."))
                                                 
-                        # Upon select new game, we give option to change number of players
-                        try: num_players = int(input("How many players? "))
+                        # Start user input block for new game
+                        try: num_players = int(input("How many players?"))
                         except: num_players = n_players
                         if num_players >6 or num_players < 2:
                             print(f"Invalid number of players, defaulting previous: {n_players}")
@@ -201,6 +205,12 @@ def run_interactive_app(
                         if initial_chips < 1000 or initial_chips > 10000000:
                             print('Invalid number of chips, using default 10K')
                             initial_chips = 10000
+                        try: n_simulations = int(input("How many simulations? "))
+                        except: n_simulations = 5
+                        if n_simulations < 1 or n_simulations > 1001:
+                            print(f'Invalid number of simulations :{n_simulations} given, using default 5')
+                            n_simulations = 5
+                        # End user input block for new game
                         names = {}
                         names[f'player_0'] = "BOT"
                         for i in range(num_players-1):
@@ -212,7 +222,7 @@ def run_interactive_app(
                             initial_chips=initial_chips,)
                     else:
                         log.info(term.green(f"{current_player_name} chose {action}"))
-                        state: ManualState = state.apply_action(action)
+                        state: ManualState = state.apply_action_interactive(action)
             else:
                 if agent == "random":
                     action = random.choice(state.legal_actions)
@@ -234,10 +244,53 @@ def run_interactive_app(
                     probabilties = list(this_state_strategy.values())
                     action = np.random.choice(actions, p=probabilties)
                     time.sleep(0.8)
+                # 3) Play by blueprint for pre_flop. Then use CFR for flop onwards
+                elif agent == "online":
+                    i = state.player_i
+                    # Create a copy of normal state so that search can be done
+                    this_state_strategy = real_time_search(state, offline_agent, i, n_simulations)
+                    # Normalizing strategy.
+                    total = sum(this_state_strategy.values())
+                    this_state_strategy = {
+                        k: v / total for k, v in this_state_strategy.items()
+                    }
+                    actions = list(this_state_strategy.keys())
+                    probabilties = list(this_state_strategy.values())
+                    action = np.random.choice(actions, p=probabilties)
+
+                    time.sleep(0.8)
+
+                # Check if action is fold but state does not require betting, so change action to call
+                biggest_bet = max(p.n_bet_chips for p in state.players)
+                bet_not_required = state.current_player.n_bet_chips == biggest_bet
+                if action == "fold" and bet_not_required:
+                    log.info(f"{current_player_name} selected fold but defaulted to call")
+                    action = "call"
                 log.info(f"{current_player_name} chose {action}")
                 # Do a manual printout in case apply action moves to next stage requiring user input..
                 print(f"{current_player_name} chose {action}")
-                state: ManualState = state.apply_action(action)
+                state: ManualState = state.apply_action_interactive(action)
+
+def real_time_search(state, agent, i, n_simulations):
+    '''Performs real time search for the agent'''
+    print(f'[INFO] Starting Real Time Search for player {i}')
+    # use_pruning: bool = np.random.uniform() < 0.95
+    use_pruning = False # Don't prune for real time search, takes longer but safer
+    rts_iterations = n_simulations
+    if use_pruning:
+        for _ in range(rts_iterations):
+            ai.cfrp(agent, state, i, t=0, c=-20000, locks=None)
+    else:
+        for _ in range(rts_iterations):
+            ai.cfr(agent, state, i, t=0, locks=None)
+    default_regret = state.initial_regret
+    this_state_regret = agent.regret.get(state.info_set, default_regret)
+    this_state_strategy = ai.calculate_strategy(this_state_regret)
+    # ai.update_strategy(agent, state, i, t=0,locks=None)
+    # print('Output from cfr', tmp)
+    return this_state_strategy
+
+
 
 def check_endgame(state):
     # Deprecated
@@ -272,32 +325,3 @@ def create_new_game(n_players, low_card_rank, initial_chips=10000, card_info_lut
             initial_chips=initial_chips,
         )
     return state
-
-# Unused
-
-def render(term):
-    '''Helper function to render all the shits'''
-    pass
-
-def get_card_input(term):
-    '''Helper function to get user input, which will return a string of length 2 representing a card!'''
-    return None
-    # First Enter a key representing the rank,
-
-    print(f'Please Enter the rank...')
-    rank = term.inkey(timeout=None)
-    while rank not in '23456789tjqkaTJQKA': 
-        rank = term.inkey(timeout=None)
-    print(f'Got Rank of {rank}')
-    print(f'Please Enter the suit...')
-    suit = ''
-    suit = term.inkey(timeout=None)
-    while suit not in 'cdhsCDHS':
-        suit = term.inkey(timeout=None)
-    print(f'Got Suit of {suit}')
-    return rank + suit
-    # Then enter a key repr the suit
-
-def get_user_input(state):
-    # Helper function that gets user input, either for hand cards, table cards.
-    pass

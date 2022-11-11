@@ -124,16 +124,16 @@ def run_terminal_app(
             lut_path=lut_path, 
             pickle_dir=pickle_dir,)
 
+    # This is to track the position of cursor/selection in the terminal app
     selected_action_i: int = 0
-    num_players= None
+    num_players = None
     n_simulations = 5 # How many times to repeat CFR
-    # We hard code these for now, but we could make this more flexible in the future.
+    # Define player names, USER/HUMAN is always player 0
     names = {}
     names[f'player_0'] = "HUMAN"
     for i in range(n_players-1):
         names[f'player_{i+1}'] = f"BOT {i+1}"
 
-    user_results: UserResults = UserResults()
     # Start main loop
     with term.cbreak(), term.hidden_cursor():
         # Loop until Human have no chips or win all chips, keep starting new HANDS
@@ -212,11 +212,9 @@ def run_terminal_app(
                 elif key.name == "KEY_ENTER":
                     action = legal_actions[selected_action_i]
                     if action == "quit":
-                        # user_results.add_result(strategy_path, agent, state, og_name_to_name)
                         log.info(term.pink("Quitting..."))
                         break
                     elif action == "new hand":
-                        # user_results.add_result(strategy_path, agent, state, og_name_to_name)
                         log.clear()
                         # Compute valid players based on chip count, use state_players to retain rotation info.
                         valid_players = [p for p in state_players if p.n_chips > 0]
@@ -238,7 +236,6 @@ def run_terminal_app(
                                 player_state = valid_players,)
 
                     elif action == "new game":
-                        # user_results.add_result(strategy_path, agent, state, og_name_to_name)
                         log.clear()
                         log.info(term.green("Starting new game with fresh chips."))
 
@@ -263,7 +260,6 @@ def run_terminal_app(
                         names[f'player_0'] = "HUMAN"
                         for i in range(num_players-1):
                             names[f'player_{i+1}'] = f"BOT {i+1}"
-
                         state = create_new_game(
                             n_players=num_players,
                             low_card_rank=low_card_rank, 
