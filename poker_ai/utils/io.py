@@ -52,8 +52,8 @@ def create_dir(dir_name: str = "results") -> Path:
     time = str(datetime.datetime.now())
     for char in ":- .":
         time = time.replace(char, "_")
-    if Path('/data').is_dir():
-        path: Path = Path(f"/data/{dir_name}_{time}")
+    if Path('/data/trained_agents').is_dir():
+        path: Path = Path(f"/data/trained_agents/{dir_name}_{time}")
     else:
         path: Path = Path(f"./{dir_name}_{time}")
     path.mkdir(parents=True)
